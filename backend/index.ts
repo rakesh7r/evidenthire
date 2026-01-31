@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import userRoute from './routes/user';
 import waitlistRoute from './routes/waitlist';
+import featuresRoute from './routes/features';
 
 import { logger } from 'hono/logger';
 
@@ -25,6 +26,7 @@ const v1 = new Hono();
 // Register routes to v1
 v1.route('/users', userRoute);
 v1.route('/waitlist', waitlistRoute);
+v1.route('/features', featuresRoute);
 
 v1.get('/', (c) => {
 	return c.text('EvidentHire Backend');

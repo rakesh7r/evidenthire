@@ -208,6 +208,14 @@ export const createDatabaseTables = async () => {
             )`;
 		console.log('Data Deletion Audit Log table created successfully');
 		console.log('Database tables created successfully');
+		// =========================
+		// FEATURE FLAGS
+		// =========================
+		await sql`CREATE TABLE IF NOT EXISTS feature_flags (
+              feature         text primary key,
+              is_enabled      boolean not null default false
+            )`;
+		console.log('Feature Flags table created successfully');
 	} catch (error) {
 		console.error('Error creating database tables:', error);
 	} finally {
