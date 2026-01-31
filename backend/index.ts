@@ -3,8 +3,11 @@ import { cors } from 'hono/cors';
 import userRoute from './routes/user';
 import waitlistRoute from './routes/waitlist';
 
+import { logger } from 'hono/logger';
+
 const app = new Hono();
 
+app.use(logger());
 app.use('/*', cors());
 
 // Check environment variables
