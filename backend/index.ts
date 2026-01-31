@@ -11,11 +11,14 @@ if (!process.env.DATABASE_URL) {
 	console.warn('WARNING: DATABASE_URL is not set. Database operations will fail.');
 }
 
+import waitlistRoute from './routes/waitlist';
+
 // Register routes
 app.route('/users', userRoute);
+app.route('/waitlist', waitlistRoute);
 
 app.get('/', (c) => {
-	return c.text('Evident Hiring Backend');
+	return c.text('EvidentHire Backend');
 });
 
 const port = 8000;
