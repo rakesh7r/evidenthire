@@ -5,7 +5,7 @@ import waitlistRoute from './routes/waitlist';
 
 import { logger } from 'hono/logger';
 
-const app = new Hono();
+const app = new Hono({ strict: true });
 
 app.use(logger());
 app.use('/*', cors());
@@ -19,13 +19,19 @@ if (!process.env.DATABASE_URL) {
 	console.log('Using DATABASE_URL:', maskedUrl);
 }
 
-// Register routes
-app.route('/users', userRoute);
-app.route('/waitlist', waitlistRoute);
+// Create v1 router
+const v1 = new Hono();
 
-app.get('/', (c) => {
+// Register routes to v1
+v1.route('/users', userRoute);
+v1.route('/waitlist', waitlistRoute);
+
+v1.get('/', (c) => {
 	return c.text('EvidentHire Backend');
 });
+
+// Mount v1 router to main app
+app.route('/api/v1', v1);
 
 const port = parseInt(process.env.PORT || '8000');
 console.log(`Server is running on port ${port}`);
