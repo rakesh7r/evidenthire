@@ -1,0 +1,21 @@
+{
+	"name": "backend",
+	"module": "index.ts",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"start": "bun run index.ts"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/pg": "^8.16.0"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@supabase/supabase-js": "^2.93.3",
+		"hono": "^4.11.7",
+		"postgres": "^3.4.8"
+	}
+}
