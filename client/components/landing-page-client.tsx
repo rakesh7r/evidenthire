@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowRight, Bot, CheckCircle, FileText, LineChart, Mic, ShieldCheck, Users, X } from 'lucide-react';
 import Link from 'next/link';
+import api from '@/lib/api';
 
 interface LandingPageProps {
 	user: any;
@@ -34,24 +35,19 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 		setStatus('loading');
 
 		try {
-			const response = await fetch('http://localhost:8000/waitlist', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ email }),
-			});
+			const response = await api.post('/waitlist', { email });
+			// axios throws on non-2xx by default, so we don't need manual !response.ok check usually,
+			// but we can access response.data directly.
 
-			const data = await response.json();
-
-			if (!response.ok) {
-				throw new Error(data.error || 'Something went wrong');
-			}
+			// data is already parsed json in axios
+			// const data = response.data;
 
 			setStatus('success');
 		} catch (error: any) {
 			setStatus('error');
-			setMessage(error.message);
+			// axios errors have a specific structure
+			const errorMsg = error.response?.data?.error || error.message || 'Something went wrong';
+			setMessage(errorMsg);
 		}
 	};
 
