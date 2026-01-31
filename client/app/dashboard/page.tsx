@@ -1,6 +1,8 @@
 import { createClient } from '@/utils/supabase/server';
 import { signOut } from '../login/actions';
-import { Bell, Bot, ChevronDown, FileText, LayoutDashboard, Settings, User } from 'lucide-react';
+import { Bell, Bot, FileText, LayoutDashboard, Settings, User } from 'lucide-react';
+import TeamManagement from '@/components/team-management';
+import PositionManagement from '@/components/position-management';
 
 export default async function Dashboard() {
 	const supabase = await createClient();
@@ -122,6 +124,12 @@ export default async function Dashboard() {
 						</div>
 					</div>
 				</div>
+
+				{/* Position Management Section */}
+				<PositionManagement />
+
+				{/* Team Management Section */}
+				<TeamManagement />
 			</div>
 		</div>
 	);
