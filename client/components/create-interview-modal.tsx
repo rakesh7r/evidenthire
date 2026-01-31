@@ -16,6 +16,14 @@ interface CreateInterviewModalProps {
 	positions: Position[];
 	userRole: UserRole;
 	availableUsers: SimpleUser[];
+	initialData?: {
+		candidateName: string;
+		candidateEmail: string;
+		positionId: string;
+		date: string;
+		time: string;
+		interviewerIds: string[];
+	};
 }
 
 export default function CreateInterviewModal({
@@ -24,15 +32,16 @@ export default function CreateInterviewModal({
 	positions,
 	userRole,
 	availableUsers,
+	initialData,
 }: CreateInterviewModalProps) {
-	const [candidateName, setCandidateName] = useState('');
-	const [candidateEmail, setCandidateEmail] = useState('');
-	const [selectedPositionId, setSelectedPositionId] = useState('');
-	const [date, setDate] = useState('');
-	const [time, setTime] = useState('');
+	const [candidateName, setCandidateName] = useState(initialData?.candidateName || '');
+	const [candidateEmail, setCandidateEmail] = useState(initialData?.candidateEmail || '');
+	const [selectedPositionId, setSelectedPositionId] = useState(initialData?.positionId || '');
+	const [date, setDate] = useState(initialData?.date || '');
+	const [time, setTime] = useState(initialData?.time || '');
 
 	// Interviewer Selection State
-	const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
+	const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>(initialData?.interviewerIds || []);
 	const [interviewerSearchTerm, setInterviewerSearchTerm] = useState('');
 	const [isInterviewerDropdownOpen, setIsInterviewerDropdownOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,6 +52,9 @@ export default function CreateInterviewModal({
 
 	const isTimeValid = useMemo(() => {
 		if (!date || !time) return true;
+		// If editing and time hasn't changed, skip validation against *current* time
+		// But for simplicity, we keep validation.
+		// Better logic: if date is today, time must be > now.
 		const selectedDateTime = new Date(`${date}T${time}`);
 		return selectedDateTime > new Date();
 	}, [date, time]);
@@ -115,9 +127,11 @@ export default function CreateInterviewModal({
 	return (
 		<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200'>
 			<div className='w-full max-w-lg overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]'>
-				<div className='relative border-b border-slate-800 p-6 flex-shrink-0'>
-					<h3 className='text-xl font-semibold text-white'>Schedule Interview</h3>
-					<p className='mt-1 text-sm text-slate-400'>Set up a new interview with a candidate.</p>
+				<div className='relative border-b border-slate-800 p-6 shrink-0'>
+					<h3 className='text-xl font-semibold text-white'>{initialData ? 'Edit Interview' : 'Schedule Interview'}</h3>
+					<p className='mt-1 text-sm text-slate-400'>
+						{initialData ? 'Update interview details.' : 'Set up a new interview with a candidate.'}
+					</p>
 					<button
 						onClick={onClose}
 						className='absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors'>
@@ -179,13 +193,15 @@ export default function CreateInterviewModal({
 									disabled>
 									Select a position...
 								</option>
-								{positions.map((pos) => (
-									<option
-										key={pos.id}
-										value={pos.id}>
-										{pos.title}
-									</option>
-								))}
+								{positions
+									.filter((pos) => pos.status === 'open')
+									.map((pos) => (
+										<option
+											key={pos.id}
+											value={pos.id}>
+											{pos.title}
+										</option>
+									))}
 							</select>
 						</div>
 					</div>
@@ -204,7 +220,7 @@ export default function CreateInterviewModal({
 									min={minDate}
 									value={date}
 									onChange={(e) => setDate(e.target.value)}
-									className='w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 px-3 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 [color-scheme:dark]'
+									className='w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 px-3 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 scheme-dark'
 								/>
 							</div>
 							<div className='space-y-2'>
@@ -220,7 +236,7 @@ export default function CreateInterviewModal({
 											!isTimeValid && date && time
 												? 'border-red-500 focus:border-red-500 focus:ring-red-500'
 												: 'border-slate-700 focus:border-orange-500 focus:ring-orange-500'
-										} bg-slate-800 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 [color-scheme:dark]`}
+										} bg-slate-800 py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 scheme-dark`}
 									/>
 								</div>
 							</div>
@@ -310,7 +326,7 @@ export default function CreateInterviewModal({
 						</div>
 					</div>
 
-					<div className='flex-shrink-0 border-t border-slate-800 p-6 flex justify-end gap-3 bg-slate-900'>
+					<div className='shrink-0 border-t border-slate-800 p-6 flex justify-end gap-3 bg-slate-900'>
 						<button
 							type='button'
 							onClick={onClose}
@@ -320,7 +336,7 @@ export default function CreateInterviewModal({
 						<button
 							onClick={handleSubmit}
 							className='rounded-lg bg-orange-600 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
-							Schedule Interview
+							{initialData ? 'Update Interview' : 'Schedule Interview'}
 						</button>
 					</div>
 				</form>

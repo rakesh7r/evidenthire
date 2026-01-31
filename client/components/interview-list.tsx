@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, User, Plus, Calendar, Clock, Briefcase } from 'lucide-react';
+import { FileText, User, Plus, Calendar, Clock, Briefcase, Edit2, Send, Users } from 'lucide-react';
 import CreateInterviewModal, { SimpleUser } from './create-interview-modal';
-import { Position, UserRole, Interview } from '@/types/db';
+import { Position, UserRole } from '@/types/db';
 
 // Mock positions data
 const MOCK_POSITIONS: Position[] = [
@@ -66,17 +66,40 @@ export default function InterviewList() {
 	// Mock user role
 	const userRole: UserRole = 'recruiter';
 
+	// Add state for editing
+	const [editingInterview, setEditingInterview] = useState<Participant | null>(null);
+
 	const [interviews, setInterviews] = useState<Participant[]>([]);
 
 	const handleCreateInterview = (data: any) => {
-		console.log('Creating interview with data:', data);
+		if (editingInterview) {
+			// Update mode
+			setInterviews(interviews.map((i) => (i.id === editingInterview.id ? { ...i, ...data } : i)));
+			setEditingInterview(null);
+		} else {
+			// Create mode
+			const newInterview: Participant = {
+				id: Math.random().toString(36).substr(2, 9),
+				...data,
+			};
+			setInterviews([newInterview, ...interviews]);
+		}
+		setIsModalOpen(false);
+	};
 
-		const newInterview: Participant = {
-			id: Math.random().toString(36).substr(2, 9),
-			...data,
-		};
+	const handleEditClick = (interview: Participant) => {
+		setEditingInterview(interview);
+		setIsModalOpen(true);
+	};
 
-		setInterviews([newInterview, ...interviews]);
+	const handleResendEmail = (email: string) => {
+		// Mock resend email
+		alert(`Invitation email re-sent to ${email}`);
+	};
+
+	const handleCloseModal = () => {
+		setIsModalOpen(false);
+		setEditingInterview(null);
 	};
 
 	const getPositionTitle = (id: string) => {
@@ -88,8 +111,11 @@ export default function InterviewList() {
 			<div className='flex items-center justify-between border-b border-slate-700 px-6 py-4'>
 				<h3 className='text-base font-semibold leading-6 text-white'>Recent Interviews</h3>
 				<button
-					onClick={() => setIsModalOpen(true)}
-					className='inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
+					onClick={() => {
+						setEditingInterview(null);
+						setIsModalOpen(true);
+					}}
+					className='inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
 					<Plus className='-ml-0.5 mr-1.5 h-4 w-4' />
 					New Interview
 				</button>
@@ -122,21 +148,39 @@ export default function InterviewList() {
 												<Briefcase className='h-3 w-3' />
 												{getPositionTitle(interview.positionId)}
 											</span>
+											{interview.interviewers && interview.interviewers.length > 0 && (
+												<span className='flex items-center gap-1.5 text-slate-400'>
+													<Users className='h-3 w-3' />
+													{interview.interviewers.length} Interviewer(s)
+												</span>
+											)}
 										</div>
 									</div>
 								</div>
 
-								<div className='flex items-center gap-6 text-sm text-slate-300'>
-									<div className='flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 border border-slate-700'>
-										<Calendar className='h-4 w-4 text-orange-500' />
+								<div className='flex flex-col items-end gap-3 sm:flex-row sm:items-center'>
+									<div className='flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 border border-slate-700 text-xs text-slate-300'>
+										<Calendar className='h-3.5 w-3.5 text-orange-500' />
 										<span>{new Date(interview.date).toLocaleDateString()}</span>
 										<span className='w-px h-3 bg-slate-700 mx-1'></span>
-										<Clock className='h-4 w-4 text-orange-500' />
+										<Clock className='h-3.5 w-3.5 text-orange-500' />
 										<span>{interview.time}</span>
 									</div>
-									<button className='text-orange-500 font-medium hover:text-orange-400 text-xs uppercase tracking-wide'>
-										View Details
-									</button>
+
+									<div className='flex items-center gap-2'>
+										<button
+											onClick={() => handleResendEmail(interview.candidateEmail)}
+											className='p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-md transition-colors'
+											title='Resend Invitation Email'>
+											<Send className='h-4 w-4' />
+										</button>
+										<button
+											onClick={() => handleEditClick(interview)}
+											className='p-1.5 text-slate-400 hover:text-orange-400 hover:bg-slate-800 rounded-md transition-colors'
+											title='Edit Interview'>
+											<Edit2 className='h-4 w-4' />
+										</button>
+									</div>
 								</div>
 							</div>
 						))}
@@ -146,11 +190,23 @@ export default function InterviewList() {
 
 			{isModalOpen && (
 				<CreateInterviewModal
-					onClose={() => setIsModalOpen(false)}
+					onClose={handleCloseModal}
 					onSubmit={handleCreateInterview}
 					positions={MOCK_POSITIONS}
 					userRole={userRole}
 					availableUsers={MOCK_USERS}
+					initialData={
+						editingInterview
+							? {
+									candidateName: editingInterview.candidateName,
+									candidateEmail: editingInterview.candidateEmail,
+									positionId: editingInterview.positionId,
+									date: editingInterview.date,
+									time: editingInterview.time,
+									interviewerIds: editingInterview.interviewers || [],
+							  }
+							: undefined
+					}
 				/>
 			)}
 		</div>

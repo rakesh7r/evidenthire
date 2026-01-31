@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Briefcase, Plus, Search, Edit2 } from 'lucide-react';
+import Link from 'next/link';
 import AddPositionModal, { PositionFormData, RequirementsSchema } from './add-position-modal';
 
 interface Position {
@@ -178,9 +179,11 @@ export default function PositionManagement() {
 							<span className='text-slate-400'>
 								<strong className='text-white'>{pos.candidatesCount}</strong> Candidates
 							</span>
-							<button className='text-orange-500 hover:text-orange-400 font-medium text-xs uppercase tracking-wide'>
+							<Link
+								href={`/dashboard/position/${pos.id}`}
+								className='text-orange-500 hover:text-orange-400 font-medium text-xs uppercase tracking-wide'>
 								View Pipeline →
-							</button>
+							</Link>
 						</div>
 					</div>
 				))}

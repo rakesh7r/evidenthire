@@ -100,7 +100,7 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 	return (
 		<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200'>
 			<div className='w-full max-w-2xl overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col'>
-				<div className='relative border-b border-slate-800 p-6 flex-shrink-0'>
+				<div className='relative border-b border-slate-800 p-6 shrink-0'>
 					<h3 className='text-xl font-semibold text-white'>{initialData ? 'Edit Position' : 'Create New Position'}</h3>
 					<p className='mt-1 text-sm text-slate-400'>
 						Configure role details, technical requirements and evaluation criteria.
@@ -292,7 +292,7 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 					</div>
 				</form>
 
-				<div className='flex-shrink-0 border-t border-slate-800 p-6 flex justify-end gap-3 bg-slate-900'>
+				<div className='shrink-0 border-t border-slate-800 p-6 flex justify-end gap-3 bg-slate-900'>
 					<button
 						type='button'
 						onClick={onClose}
