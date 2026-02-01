@@ -97,10 +97,12 @@ const startSQSConsumer = async () => {
 				for (const message of response.Messages) {
 					if (message.Body) {
 						try {
-							const s3Event = JSON.parse(message.Body);
-							// Standard S3 Event Records
-							if (s3Event.Records) {
-								for (const record of s3Event.Records) {
+							const body = JSON.parse(message.Body);
+
+							if (body.event === 'track_published') {
+								console.log(`Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`);
+							} else if (body.Records) {
+								for (const record of body.Records) {
 									if (!record.s3 || !record.s3.bucket || !record.s3.object) continue;
 
 									const bucket = record.s3.bucket.name;
