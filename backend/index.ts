@@ -12,7 +12,27 @@ import { logger } from 'hono/logger';
 const app = new Hono({ strict: true });
 
 app.use(logger());
-app.use('/*', cors());
+app.use(
+	'/*',
+	cors({
+		origin: (origin) => {
+			// Allow local development
+			if (origin.includes('localhost')) return origin;
+			// Allow all Vercel deployments (previews and production)
+			if (origin.endsWith('.vercel.app')) return origin;
+			// Allow production domain
+			if (origin === 'https://evidenthire.in') return origin;
+			// Allow exact match for the reported blocked origin just in case
+			if (origin === 'https://evidenthire-itohkms2o-rakesh7rs-projects.vercel.app') return origin;
+			return origin; // Fallback to returning the origin (reflective) or specific allow list
+		},
+		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+		allowHeaders: ['Content-Type', 'Authorization'],
+		exposeHeaders: ['Content-Length'],
+		maxAge: 600,
+		credentials: true,
+	})
+);
 
 // Check environment variables
 if (!process.env.DATABASE_URL) {
