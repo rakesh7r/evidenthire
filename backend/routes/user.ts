@@ -1,5 +1,11 @@
 import { Hono } from 'hono';
-import { createUser, updateUserOnboarding, getUserById, updateUserProfile } from '../services/user.service';
+import {
+	createUser,
+	updateUserOnboarding,
+	getUserById,
+	updateUserProfile,
+	getUsersByOrg,
+} from '../services/user.service';
 import { authMiddleware, type AuthEnv } from '../middleware/auth';
 
 const user = new Hono<AuthEnv>();
@@ -23,6 +29,17 @@ user.get('/me', async (c) => {
 	} catch (err: any) {
 		console.error('Error fetching user:', err);
 		return c.json({ error: 'Internal server error', details: err.message }, 500);
+	}
+});
+
+user.get('/team', async (c) => {
+	const supabaseUser = c.get('user');
+	try {
+		const result = await getUsersByOrg(supabaseUser.id);
+		return c.json(result);
+	} catch (err: any) {
+		console.error('Error fetching team:', err);
+		return c.json({ error: err.message }, 500);
 	}
 });
 

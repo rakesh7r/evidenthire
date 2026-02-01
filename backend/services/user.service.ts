@@ -137,3 +137,19 @@ export const updateUserProfile = async (userId: string, data: UserProfileUpdate)
     `;
 	return getUserById(userId);
 };
+
+export const getUsersByOrg = async (userId: string) => {
+	const user = await sql`SELECT organization_id FROM user_account WHERE id = ${userId}`;
+	const organization_id = user[0]?.organization_id;
+
+	if (!organization_id) {
+		return [];
+	}
+
+	return await sql`
+        SELECT id, email, full_name, role 
+        FROM user_account 
+        WHERE organization_id = ${organization_id}
+        ORDER BY full_name ASC
+    `;
+};

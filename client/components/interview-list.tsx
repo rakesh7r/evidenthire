@@ -1,101 +1,128 @@
 'use client';
 
-import { useState } from 'react';
-import { FileText, User, Plus, Calendar, Clock, Briefcase, Edit2, Send, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import {
+	FileText,
+	User,
+	Plus,
+	Calendar,
+	Clock,
+	Briefcase,
+	Edit2,
+	Send,
+	Users,
+	Loader2,
+	AlertCircle,
+	Trash2,
+	Video,
+} from 'lucide-react';
 import CreateInterviewModal, { SimpleUser } from './create-interview-modal';
 import { Position, UserRole } from '@/types/db';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
-// Mock positions data
-const MOCK_POSITIONS: Position[] = [
-	{
-		id: '1',
-		title: 'Senior Frontend Engineer',
-		status: 'open',
-		created_at: new Date().toISOString(),
-	},
-	{
-		id: '2',
-		title: 'Product Designer',
-		status: 'open',
-		created_at: new Date().toISOString(),
-	},
-	{
-		id: '3',
-		title: 'Backend Developer',
-		status: 'closed',
-		created_at: new Date().toISOString(),
-	},
-];
-
-// Mock users data
-const MOCK_USERS: SimpleUser[] = [
-	{
-		id: '1',
-		name: 'Alex Johnson',
-		email: 'alex@acme.inc',
-	},
-	{
-		id: '2',
-		name: 'Sarah Smith',
-		email: 'sarah@acme.inc',
-	},
-	{
-		id: '3',
-		name: 'Mike Chen',
-		email: 'mike@acme.inc',
-	},
-	{
-		id: '4',
-		name: 'Emily Davis',
-		email: 'emily@acme.inc',
-	},
-];
-
-interface Participant {
+interface Interview {
 	id: string;
-	candidateName: string;
-	candidateEmail: string;
-	positionId: string;
-	date: string;
-	time: string;
-	interviewers?: string[];
+	candidate_name: string;
+	candidate_email: string;
+	position_id: string;
+	position_title: string;
+	scheduled_start: string;
+	interviewer_ids: string[];
+	status: string;
 }
 
 export default function InterviewList() {
 	const [isModalOpen, setIsModalOpen] = useState(false);
-	// Mock user role
-	const userRole: UserRole = 'recruiter';
+	const [userRole, setUserRole] = useState<UserRole>('interviewer');
+	const [positions, setPositions] = useState<Position[]>([]);
+	const [availableUsers, setAvailableUsers] = useState<SimpleUser[]>([]);
+	const [interviews, setInterviews] = useState<Interview[]>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 
 	// Add state for editing
-	const [editingInterview, setEditingInterview] = useState<Participant | null>(null);
+	const [editingInterview, setEditingInterview] = useState<Interview | null>(null);
 
-	const [interviews, setInterviews] = useState<Participant[]>([]);
+	useEffect(() => {
+		fetchData();
+	}, []);
 
-	const handleCreateInterview = (data: any) => {
-		if (editingInterview) {
-			// Update mode
-			setInterviews(interviews.map((i) => (i.id === editingInterview.id ? { ...i, ...data } : i)));
-			setEditingInterview(null);
-		} else {
-			// Create mode
-			const newInterview: Participant = {
-				id: Math.random().toString(36).substr(2, 9),
-				...data,
-			};
-			setInterviews([newInterview, ...interviews]);
+	const fetchData = async () => {
+		setIsLoading(true);
+		setError(null);
+		try {
+			const [userRes, interviewsRes, positionsRes, teamRes] = await Promise.all([
+				api.get('/users/me'),
+				api.get('/interviews'),
+				api.get('/positions'),
+				api.get('/users/team'),
+			]);
+
+			setUserRole(userRes.data.role);
+			setInterviews(interviewsRes.data);
+			setPositions(positionsRes.data);
+			setAvailableUsers(
+				teamRes.data.map((u: any) => ({
+					id: u.id,
+					name: u.full_name || u.email,
+					email: u.email,
+				}))
+			);
+		} catch (err: any) {
+			console.error('Failed to fetch interview data:', err);
+			setError('Failed to load interviews. Please try again.');
+		} finally {
+			setIsLoading(false);
 		}
-		setIsModalOpen(false);
 	};
 
-	const handleEditClick = (interview: Participant) => {
+	const handleCreateInterview = async (data: any) => {
+		const toastId = toast.loading(editingInterview ? 'Updating interview...' : 'Scheduling interview...');
+		try {
+			if (editingInterview) {
+				const res = await api.put(`/interviews/${editingInterview.id}`, data);
+				toast.success('Interview updated successfully', { id: toastId });
+				// Refresh interviews
+				const interviewsRes = await api.get('/interviews');
+				setInterviews(interviewsRes.data);
+			} else {
+				const res = await api.post('/interviews', data);
+				toast.success('Interview scheduled successfully', { id: toastId });
+				setInterviews([res.data, ...interviews]);
+			}
+			setIsModalOpen(false);
+			setEditingInterview(null);
+		} catch (err: any) {
+			console.error('Failed to save interview:', err);
+			const errorMessage = err.response?.data?.error || 'Failed to save interview';
+			toast.error(errorMessage, { id: toastId });
+		}
+	};
+
+	const handleEditClick = (interview: Interview) => {
 		setEditingInterview(interview);
 		setIsModalOpen(true);
 	};
 
 	const handleResendEmail = (email: string) => {
-		// Mock resend email
 		toast.success(`Invitation email re-sent to ${email}`);
+	};
+
+	const handleDeleteInterview = async (id: string) => {
+		if (!confirm('Are you sure you want to delete this interview?')) return;
+
+		const toastId = toast.loading('Deleting interview...');
+		try {
+			await api.delete(`/interviews/${id}`);
+			toast.success('Interview deleted successfully', { id: toastId });
+			setInterviews(interviews.filter((i) => i.id !== id));
+		} catch (err: any) {
+			console.error('Failed to delete interview:', err);
+			const errorMessage = err.response?.data?.error || 'Failed to delete interview';
+			toast.error(errorMessage, { id: toastId });
+		}
 	};
 
 	const handleCloseModal = () => {
@@ -103,23 +130,46 @@ export default function InterviewList() {
 		setEditingInterview(null);
 	};
 
-	const getPositionTitle = (id: string) => {
-		return MOCK_POSITIONS.find((p) => p.id === id)?.title || 'Unknown Position';
-	};
+	if (isLoading) {
+		return (
+			<div className='mt-8 flex h-64 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 shadow-sm'>
+				<div className='flex flex-col items-center gap-2'>
+					<Loader2 className='h-8 w-8 animate-spin text-orange-500' />
+					<p className='text-sm text-slate-400'>Loading interviews...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className='mt-8 rounded-xl border border-red-500/20 bg-red-500/5 p-6 flex flex-col items-center gap-3 text-red-500'>
+				<AlertCircle className='h-8 w-8' />
+				<span className='text-sm font-medium'>{error}</span>
+				<button
+					onClick={fetchData}
+					className='mt-2 text-xs font-semibold uppercase tracking-wider text-white bg-red-500/20 px-4 py-2 rounded hover:bg-red-500/30 transition-colors'>
+					Retry
+				</button>
+			</div>
+		);
+	}
 
 	return (
 		<div className='mt-8 rounded-xl border border-slate-700 bg-slate-800 shadow-sm'>
 			<div className='flex items-center justify-between border-b border-slate-700 px-6 py-4'>
 				<h3 className='text-base font-semibold leading-6 text-white'>Recent Interviews</h3>
-				<button
-					onClick={() => {
-						setEditingInterview(null);
-						setIsModalOpen(true);
-					}}
-					className='inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
-					<Plus className='-ml-0.5 mr-1.5 h-4 w-4' />
-					New Interview
-				</button>
+				{['admin', 'recruiter'].includes(userRole) && (
+					<button
+						onClick={() => {
+							setEditingInterview(null);
+							setIsModalOpen(true);
+						}}
+						className='inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
+						<Plus className='-ml-0.5 mr-1.5 h-4 w-4' />
+						New Interview
+					</button>
+				)}
 			</div>
 
 			<div className='p-6'>
@@ -142,17 +192,17 @@ export default function InterviewList() {
 										<User className='h-5 w-5' />
 									</div>
 									<div>
-										<h4 className='font-medium text-white'>{interview.candidateName}</h4>
-										<p className='text-sm text-slate-400'>{interview.candidateEmail}</p>
+										<h4 className='font-medium text-white'>{interview.candidate_name}</h4>
+										<p className='text-sm text-slate-400'>{interview.candidate_email}</p>
 										<div className='mt-1 flex items-center gap-4 text-xs text-slate-500'>
 											<span className='flex items-center gap-1.5'>
 												<Briefcase className='h-3 w-3' />
-												{getPositionTitle(interview.positionId)}
+												{interview.position_title}
 											</span>
-											{interview.interviewers && interview.interviewers.length > 0 && (
+											{interview.interviewer_ids && interview.interviewer_ids.length > 0 && (
 												<span className='flex items-center gap-1.5 text-slate-400'>
 													<Users className='h-3 w-3' />
-													{interview.interviewers.length} Interviewer(s)
+													{interview.interviewer_ids.length} Interviewer(s)
 												</span>
 											)}
 										</div>
@@ -162,25 +212,48 @@ export default function InterviewList() {
 								<div className='flex flex-col items-end gap-3 sm:flex-row sm:items-center'>
 									<div className='flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 border border-slate-700 text-xs text-slate-300'>
 										<Calendar className='h-3.5 w-3.5 text-orange-500' />
-										<span>{new Date(interview.date).toLocaleDateString()}</span>
+										<span>{new Date(interview.scheduled_start).toLocaleDateString()}</span>
 										<span className='w-px h-3 bg-slate-700 mx-1'></span>
 										<Clock className='h-3.5 w-3.5 text-orange-500' />
-										<span>{interview.time}</span>
+										<span>
+											{new Date(interview.scheduled_start).toLocaleTimeString([], {
+												hour: '2-digit',
+												minute: '2-digit',
+											})}
+										</span>
 									</div>
 
 									<div className='flex items-center gap-2'>
+										<Link
+											href={`/interview/${interview.id}`}
+											target='_blank'
+											className='mr-2 inline-flex items-center gap-1.5 rounded-md bg-green-600/10 px-2.5 py-1.5 text-xs font-medium text-green-500 border border-green-600/20 hover:bg-green-600/20 transition-colors'
+											title='Join Interview Lobby'>
+											<Video className='h-3.5 w-3.5' />
+											Join Lobby
+										</Link>
 										<button
-											onClick={() => handleResendEmail(interview.candidateEmail)}
+											onClick={() => handleResendEmail(interview.candidate_email)}
 											className='p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-md transition-colors'
 											title='Resend Invitation Email'>
 											<Send className='h-4 w-4' />
 										</button>
-										<button
-											onClick={() => handleEditClick(interview)}
-											className='p-1.5 text-slate-400 hover:text-orange-400 hover:bg-slate-800 rounded-md transition-colors'
-											title='Edit Interview'>
-											<Edit2 className='h-4 w-4' />
-										</button>
+										{['admin', 'recruiter'].includes(userRole) && (
+											<>
+												<button
+													onClick={() => handleEditClick(interview)}
+													className='p-1.5 text-slate-400 hover:text-orange-400 hover:bg-slate-800 rounded-md transition-colors'
+													title='Edit Interview'>
+													<Edit2 className='h-4 w-4' />
+												</button>
+												<button
+													onClick={() => handleDeleteInterview(interview.id)}
+													className='p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors'
+													title='Delete Interview'>
+													<Trash2 className='h-4 w-4' />
+												</button>
+											</>
+										)}
 									</div>
 								</div>
 							</div>
@@ -193,18 +266,18 @@ export default function InterviewList() {
 				<CreateInterviewModal
 					onClose={handleCloseModal}
 					onSubmit={handleCreateInterview}
-					positions={MOCK_POSITIONS}
+					positions={positions}
 					userRole={userRole}
-					availableUsers={MOCK_USERS}
+					availableUsers={availableUsers}
 					initialData={
 						editingInterview
 							? {
-									candidateName: editingInterview.candidateName,
-									candidateEmail: editingInterview.candidateEmail,
-									positionId: editingInterview.positionId,
-									date: editingInterview.date,
-									time: editingInterview.time,
-									interviewerIds: editingInterview.interviewers || [],
+									candidateName: editingInterview.candidate_name,
+									candidateEmail: editingInterview.candidate_email,
+									positionId: editingInterview.position_id,
+									date: new Date(editingInterview.scheduled_start).toISOString().split('T')[0],
+									time: new Date(editingInterview.scheduled_start).toTimeString().substring(0, 5),
+									interviewerIds: editingInterview.interviewer_ids || [],
 							  }
 							: undefined
 					}
