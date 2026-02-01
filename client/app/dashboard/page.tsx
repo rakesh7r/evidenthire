@@ -4,6 +4,7 @@ import { Bell, Bot, FileText, LayoutDashboard, Settings, User } from 'lucide-rea
 import TeamManagement from '@/components/team-management';
 import PositionManagement from '@/components/position-management';
 import InterviewList from '@/components/interview-list';
+import Link from 'next/link';
 
 export default async function Dashboard() {
 	const supabase = await createClient();
@@ -28,6 +29,12 @@ export default async function Dashboard() {
 							<Bell className='h-5 w-5' />
 							<span className='absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-900'></span>
 						</button>
+						<Link
+							href='/dashboard/settings'
+							className='relative rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors'
+							title='Settings'>
+							<Settings className='h-5 w-5' />
+						</Link>
 						<div className='h-6 w-px bg-slate-800'></div>
 						<div className='flex items-center gap-3'>
 							<div className='h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 font-semibold text-sm border border-orange-500/20'>
@@ -110,7 +117,7 @@ export default async function Dashboard() {
 				<PositionManagement />
 
 				{/* Team Management Section */}
-				<TeamManagement />
+				<TeamManagement currentUserId={user?.id || ''} />
 			</div>
 		</div>
 	);

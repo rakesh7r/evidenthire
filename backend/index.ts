@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import organizationRoute from './routes/organization';
 import userRoute from './routes/user';
 import waitlistRoute from './routes/waitlist';
 import featuresRoute from './routes/features';
@@ -25,6 +26,7 @@ const v1 = new Hono();
 
 // Register routes to v1
 v1.route('/users', userRoute);
+v1.route('/organizations', organizationRoute);
 v1.route('/waitlist', waitlistRoute);
 v1.route('/features', featuresRoute);
 

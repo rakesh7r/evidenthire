@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { createUser, updateUserOnboarding, getUserById } from '../services/user.service';
+import { createUser, updateUserOnboarding, getUserById, updateUserProfile } from '../services/user.service';
 import { authMiddleware, type AuthEnv } from '../middleware/auth';
 
 const user = new Hono<AuthEnv>();
@@ -42,6 +42,21 @@ user.post('/me', async (c) => {
 	} catch (err) {
 		console.error('Service error:', err);
 		return c.json({ error: (err as Error).message }, 500);
+	}
+});
+
+user.put('/me', async (c) => {
+	const supabaseUser = c.get('user');
+	if (!supabaseUser) return c.json({ error: 'Unauthorized' }, 401);
+
+	try {
+		const body = await c.req.json();
+		// Updates profile fields provided in body
+		const updatedUser = await updateUserProfile(supabaseUser.id, body);
+		return c.json(updatedUser);
+	} catch (err: any) {
+		console.error('Update failed:', err);
+		return c.json({ error: 'Failed to update profile', details: err.message }, 500);
 	}
 });
 

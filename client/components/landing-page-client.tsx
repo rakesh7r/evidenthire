@@ -1,20 +1,53 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Bot, CheckCircle, FileText, LineChart, Mic, ShieldCheck, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { createClient } from '@/utils/supabase/client';
 
 interface LandingPageProps {
 	user: any;
 	isWaitlist: boolean;
+	code?: string;
 }
 
-export default function LandingPageClient({ user, isWaitlist }: LandingPageProps) {
+export default function LandingPageClient({ user, isWaitlist, code }: LandingPageProps) {
+	const router = useRouter();
+	const supabase = createClient();
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [email, setEmail] = useState('');
 	const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 	const [message, setMessage] = useState('');
+
+	useEffect(() => {
+		if (code) {
+			const processAuth = async () => {
+				await supabase.auth.exchangeCodeForSession(code);
+			};
+			processAuth();
+		}
+	}, [code, supabase]);
+
+	useEffect(() => {
+		const {
+			data: { subscription },
+		} = supabase.auth.onAuthStateChange(async (event, session) => {
+			if (event === 'PASSWORD_RECOVERY') {
+				router.push('/reset-password');
+			} else if (event === 'SIGNED_IN' && code) {
+				// Default to reset password page for codes landing on root,
+				// as this covers the "Reset Password" flow where 'type' param is missing.
+				setTimeout(() => {
+					if (window.location.pathname !== '/reset-password') {
+						router.push('/reset-password');
+					}
+				}, 500);
+			}
+		});
+		return () => subscription.unsubscribe();
+	}, [supabase, router, code]);
 
 	const openModal = (e: React.MouseEvent) => {
 		if (isWaitlist) {

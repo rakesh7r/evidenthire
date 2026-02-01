@@ -20,6 +20,8 @@ export const createDatabaseTables = async () => {
               id              uuid primary key DEFAULT gen_random_uuid(),
               name            text not null,
               domain          text,
+              city            text,
+              country         text,
               created_at      timestamptz not null default now()
             )`;
 		console.log('Organization table created successfully');
@@ -33,9 +35,7 @@ export const createDatabaseTables = async () => {
               organization_id   uuid references organization(id),
               role              text check (role in ('recruiter','interviewer','admin')),
               date_of_birth     date,
-              gender            text check (gender in ('male','female','non_binary','prefer_not_to_say')),
-              city              text,
-              country           text,
+              gender            text check (gender in ('male','female','non_binary','prefer_not_to_say','other')),
               created_at        timestamptz not null default now(),
               last_logged_in_at timestamptz
             )`;
