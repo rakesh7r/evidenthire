@@ -6,6 +6,7 @@ import waitlistRoute from './routes/waitlist';
 import featuresRoute from './routes/features';
 import positionRoute from './routes/position';
 import interviewRoute from './routes/interview';
+import webhookRoute from './routes/webhook';
 
 import { logger } from 'hono/logger';
 
@@ -63,6 +64,7 @@ v1.route('/waitlist', waitlistRoute);
 v1.route('/features', featuresRoute);
 v1.route('/positions', positionRoute);
 v1.route('/interviews', interviewRoute);
+v1.route('/webhooks/livekit', webhookRoute);
 
 v1.get('/', (c) => {
 	return c.text('EvidentHire Backend');
