@@ -93,6 +93,7 @@ const startSQSConsumer = async () => {
 			const response = await sqsClient.send(command);
 
 			if (response.Messages && response.Messages.length > 0) {
+				console.log(`Received ${response.Messages.length} messages from SQS.`);
 				for (const message of response.Messages) {
 					if (message.Body) {
 						try {
@@ -140,8 +141,11 @@ async function processAudioChunk(bucket: string, key: string) {
 	const chunksPrefix = parts.join('/'); // .../chunks
 	const playlistKey = `${chunksPrefix}/playlist.m3u8`;
 
+	console.log(`[${key}] Starting processing...`);
+
 	try {
 		// 1. Fetch Playlist to find timestamp
+		console.log(`[${key}] Fetching playlist: ${playlistKey}`);
 		const playlistRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: playlistKey }));
 		const playlistStr = await streamToString(playlistRes.Body as Readable);
 		const segments = parseM3u8(playlistStr);
@@ -151,6 +155,7 @@ async function processAudioChunk(bucket: string, key: string) {
 		const timestamp = new Date(startTime * 1000).toISOString().substr(11, 8); // HH:MM:SS
 
 		// 2. Fetch Audio Chunk
+		console.log(`[${key}] Fetching audio chunk...`);
 		const audioRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
 		const audioBuffer = await streamToBuffer(audioRes.Body as Readable);
 
@@ -160,8 +165,10 @@ async function processAudioChunk(bucket: string, key: string) {
 			// OpenAI requires specific File-like object or filename.
 			// We can use the 'file' parameter with options
 			// Note: converting buffer to file object for OpenAI might require 'file-type' or mocking it
+			// Note: converting buffer to file object for OpenAI might require 'file-type' or mocking it
 			const file = new File([audioBuffer], filename || 'audio.mp3', { type: 'audio/mpeg' });
 
+			console.log(`[${key}] Sending to OpenAI Whisper model: ${file.name} (${file.size} bytes)`);
 			const transcription = await openai.audio.transcriptions.create({
 				file: file,
 				model: 'whisper-1',
