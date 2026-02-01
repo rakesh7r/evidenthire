@@ -114,8 +114,10 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 			{/* Header Section */}
 			<div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
 				<div>
-					<h2 className='text-xl font-semibold text-white'>Organization Members</h2>
-					<p className='mt-1 text-sm text-slate-400'>Manage your team, assign roles, and handle access permissions.</p>
+					<h2 className='text-xl font-semibold text-slate-900 dark:text-white'>Organization Members</h2>
+					<p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
+						Manage your team, assign roles, and handle access permissions.
+					</p>
 				</div>
 				{canManageTeam && (
 					<button
@@ -136,12 +138,12 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 						placeholder='Search users by name or email...'
 						value={searchTerm}
 						onChange={(e) => setSearchTerm(e.target.value)}
-						className='w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 transition-colors focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
+						className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 transition-colors focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:focus:ring-orange-500'
 					/>
 				</div>
 				<div className='flex gap-3 text-sm'>
-					<div className='rounded-lg bg-slate-800 px-3 py-1.5 text-slate-300 border border-slate-700'>
-						Total: <span className='font-semibold text-white'>{users.length}</span>
+					<div className='rounded-lg bg-white dark:bg-slate-800 px-3 py-1.5 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'>
+						Total: <span className='font-semibold text-slate-900 dark:text-white'>{users.length}</span>
 					</div>
 				</div>
 			</div>
@@ -151,14 +153,14 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 				{filteredUsers.map((user) => (
 					<div
 						key={user.id}
-						className='group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 p-5 transition-all hover:border-slate-700 hover:bg-slate-800/50 hover:shadow-md'>
+						className='group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-5 transition-all hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:shadow-md'>
 						<div className='flex items-start justify-between'>
 							<div className='flex items-center gap-3'>
-								<div className='flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-400 font-semibold border border-slate-700'>
+								<div className='flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold border border-slate-200 dark:border-slate-700'>
 									{(user.full_name || user.email).charAt(0).toUpperCase()}
 								</div>
 								<div>
-									<h3 className='font-medium text-white group-hover:text-orange-400 transition-colors'>
+									<h3 className='font-medium text-slate-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors'>
 										{user.full_name || 'No Name'}
 									</h3>
 									<div className='flex items-center gap-1.5 text-xs text-slate-500'>
@@ -172,7 +174,7 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 							<select
 								value={user.role}
 								onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
-								className='bg-slate-800 border-none text-xs font-medium text-slate-300 rounded focus:ring-0 cursor-pointer pointer-events-auto z-10'
+								className='bg-slate-100 dark:bg-slate-800 border-none text-xs font-medium text-slate-700 dark:text-slate-300 rounded focus:ring-0 cursor-pointer pointer-events-auto z-10'
 								onClick={(e) => e.stopPropagation()}>
 								<option value='admin'>Admin</option>
 								<option value='recruiter'>Recruiter</option>
@@ -180,10 +182,10 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 							</select>
 						</div>
 
-						<div className='mt-6 flex items-center justify-between border-t border-slate-800 pt-4'>
+						<div className='mt-6 flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-4'>
 							<div className='flex items-center gap-2'>
-								<span className='inline-flex items-center rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300 border border-slate-700'>
-									<Shield className='mr-1.5 h-3 w-3 text-orange-500' />
+								<span className='inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'>
+									<Shield className='mr-1.5 h-3 w-3 text-orange-600 dark:text-orange-500' />
 									{user.role.charAt(0).toUpperCase() + user.role.slice(1)}
 								</span>
 							</div>
@@ -205,12 +207,14 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 			{isAddModalOpen && (
 				<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200'>
 					<div className='w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl animate-in zoom-in-95 duration-200'>
-						<div className='relative border-b border-slate-800 p-6'>
-							<h3 className='text-lg font-semibold text-white'>Add New Member</h3>
-							<p className='mt-1 text-sm text-slate-400'>Add an existing user to your organization by email.</p>
+						<div className='relative border-b border-slate-200 dark:border-slate-800 p-6'>
+							<h3 className='text-lg font-semibold text-slate-900 dark:text-white'>Add New Member</h3>
+							<p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
+								Add an existing user to your organization by email.
+							</p>
 							<button
 								onClick={() => setIsAddModalOpen(false)}
-								className='absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors'>
+								className='absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors'>
 								<X className='h-5 w-5' />
 							</button>
 						</div>
@@ -219,7 +223,7 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 							onSubmit={handleAddUser}
 							className='p-6 space-y-4'>
 							<div className='space-y-2'>
-								<label className='text-sm font-medium text-slate-300'>Email Address</label>
+								<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Email Address</label>
 								<div className='relative'>
 									<Mail className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500' />
 									<input
@@ -227,14 +231,14 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 										required
 										value={newEmail}
 										onChange={(e) => setNewEmail(e.target.value)}
-										className='w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
+										className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
 										placeholder='john@example.com'
 									/>
 								</div>
 							</div>
 
 							<div className='space-y-2'>
-								<label className='text-sm font-medium text-slate-300'>Role</label>
+								<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Role</label>
 								<div className='grid grid-cols-3 gap-3'>
 									{(['recruiter', 'interviewer', 'admin'] as const).map((role) => (
 										<label
@@ -244,7 +248,7 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
                                                 ${
 																									newRole === role
 																										? 'bg-orange-600 border-orange-600 text-white shadow-md'
-																										: 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+																										: 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
 																								}
                                             `}>
 											<input
@@ -271,7 +275,7 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 								<button
 									type='submit'
 									disabled={isSubmitting}
-									className='rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600 disabled:opacity-50'>
+									className='rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600 disabled:opacity-50'>
 									{isSubmitting ? 'Adding...' : 'Add Member'}
 								</button>
 							</div>
