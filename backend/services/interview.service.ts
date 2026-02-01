@@ -507,3 +507,18 @@ export const resendInvitation = async (userId: string, interviewId: string) => {
 		throw new Error(`Failed to send email: ${err.message}`);
 	}
 };
+
+export const getInterviewMetadataForRecording = async (interviewId: string) => {
+	const result = await sql`
+        SELECT 
+            i.id,
+            i.scheduled_start,
+            c.email as candidate_email,
+            p.title as position_title
+        FROM interview i
+        JOIN candidate c ON i.candidate_id = c.id
+        JOIN position p ON i.position_id = p.id
+        WHERE i.id = ${interviewId}
+    `;
+	return result[0];
+};

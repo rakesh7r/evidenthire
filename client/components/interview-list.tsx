@@ -236,7 +236,7 @@ export default function InterviewList() {
 
 									<div className='flex items-center gap-2'>
 										<Link
-											href={`/interview/${interview.id}`}
+											href={`/interview/${interview.id}?isInterviewer=true`}
 											target='_blank'
 											className='mr-2 inline-flex items-center gap-1.5 rounded-md bg-green-600/10 px-2.5 py-1.5 text-xs font-medium text-green-500 border border-green-600/20 hover:bg-green-600/20 transition-colors'
 											title='Join Interview Lobby'>
