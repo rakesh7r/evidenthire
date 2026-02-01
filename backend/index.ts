@@ -16,15 +16,17 @@ app.use(
 	'/*',
 	cors({
 		origin: (origin) => {
+			// Allow non-browser tools & preflight edge cases
+			if (!origin) return origin; // Hono's cors helper treats this correctly for non-browser requests
+
 			// Allow local development
 			if (origin.includes('localhost')) return origin;
 			// Allow all Vercel deployments (previews and production)
 			if (origin.endsWith('.vercel.app')) return origin;
 			// Allow production domain
 			if (origin === 'https://evidenthire.in') return origin;
-			// Allow exact match for the reported blocked origin just in case
-			if (origin === 'https://evidenthire-itohkms2o-rakesh7rs-projects.vercel.app') return origin;
-			return origin; // Fallback to returning the origin (reflective) or specific allow list
+
+			return origin; // We return user provided origin to let browser decide, or providing null/undefined to block
 		},
 		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 		allowHeaders: ['Content-Type', 'Authorization'],
@@ -33,6 +35,14 @@ app.use(
 		credentials: true,
 	})
 );
+
+// Explicitly handle OPTIONS requests globally to avoid auth blocking them
+app.use('/*', async (c, next) => {
+	if (c.req.method === 'OPTIONS') {
+		return c.body(null, 204);
+	}
+	await next();
+});
 
 // Check environment variables
 if (!process.env.DATABASE_URL) {
