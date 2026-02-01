@@ -18,11 +18,12 @@ interface UserProfile {
 	organization_country?: string;
 }
 
+import { toast } from 'sonner';
+
 export default function ProfileSettings() {
 	const [profile, setProfile] = useState<UserProfile | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
-	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	useEffect(() => {
 		fetchProfile();
@@ -48,7 +49,7 @@ export default function ProfileSettings() {
 			setProfile(userData);
 		} catch (err) {
 			console.error('Failed to fetch profile:', err);
-			setMessage({ type: 'error', text: 'Failed to load profile data' });
+			toast.error('Failed to load profile data');
 		} finally {
 			setIsLoading(false);
 		}
@@ -58,26 +59,8 @@ export default function ProfileSettings() {
 		e.preventDefault();
 		if (!profile) return;
 		setIsSaving(true);
-		setMessage(null);
 
-		try {
-			// Check if we have an endpoint for updating user?
-			// "onboarding" endpoint /users uses PUT or POST for initial creation.
-			// backend/routes/user.ts currently has:
-			// - POST / (onboarding)
-			// - GET /me
-			// We need a generic update endpoint? Or reuse onboarding logic?
-			// The onboarding endpoint expects specific fields.
-			// Let's assume we need to Create/Use PUT /users/me logic.
-			// I'll create the endpoint later. For now, I'll attempt PUT /users/me or just mock the UI logic until backend is ready.
-			// Wait, I am the backend engineer too. I should verify if I have update endpoint.
-			// I don't recall creating a generic "update profile" endpoint.
-			// I only have `post('/', ...)` which updates if exists?
-			// Let's check user.service.ts `updateUserOnboarding`.
-			// It updates name, city, etc.
-			// So calling POST /users (or whatever route maps to updateUserOnboarding) might work if it handles updates.
-			// But usually we want a cleaner PUT /me.
-
+		const updatePromise = (async () => {
 			await api.put('/users/me', {
 				fullName: profile.full_name,
 				gender: profile.gender,
@@ -92,13 +75,14 @@ export default function ProfileSettings() {
 					country: profile.organization_country,
 				});
 			}
+		})();
 
-			setMessage({ type: 'success', text: 'Profile updated successfully' });
-		} catch (err: any) {
-			setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to update profile' });
-		} finally {
-			setIsSaving(false);
-		}
+		toast.promise(updatePromise, {
+			loading: 'Saving profile changes...',
+			success: 'Profile updated successfully',
+			error: (err: any) => err.response?.data?.error || 'Failed to update profile',
+			finally: () => setIsSaving(false),
+		});
 	};
 
 	if (isLoading) {
@@ -126,17 +110,6 @@ export default function ProfileSettings() {
 			<form
 				onSubmit={handleSubmit}
 				className='space-y-6 max-w-2xl'>
-				{message && (
-					<div
-						className={`rounded-lg p-3 text-sm ${
-							message.type === 'success'
-								? 'bg-green-500/10 text-green-500 border border-green-500/20'
-								: 'bg-red-500/10 text-red-500 border border-red-500/20'
-						}`}>
-						{message.text}
-					</div>
-				)}
-
 				<div className='grid grid-cols-1 gap-6 sm:grid-cols-2'>
 					<div className='sm:col-span-2'>
 						<label className='block text-sm font-medium text-slate-300 mb-1'>Full Name</label>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function OnboardingPage() {
 	const router = useRouter();
@@ -61,17 +62,16 @@ export default function OnboardingPage() {
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setIsLoading(true);
-		console.log('Submitting Onboarding Data:', formData);
 
-		try {
-			await api.post('/users/onboarding', formData);
-			router.push('/dashboard');
-		} catch (error) {
-			console.error('Onboarding failed:', error);
-			// Ideally show an error toast here
-		} finally {
-			setIsLoading(false);
-		}
+		toast.promise(api.post('/users/onboarding', formData), {
+			loading: 'Finalizing your profile...',
+			success: () => {
+				router.push('/dashboard');
+				return 'Onboarding complete! Welcome aboard.';
+			},
+			error: (err: any) => err.response?.data?.error || 'Failed to complete onboarding. Please try again.',
+			finally: () => setIsLoading(false),
+		});
 	};
 
 	return (

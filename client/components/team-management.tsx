@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Shield, Trash2, Mail, User as UserIcon, X, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 
 type Role = 'admin' | 'recruiter' | 'interviewer';
 
@@ -46,41 +47,52 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 	const handleAddUser = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setIsSubmitting(true);
-		try {
-			await api.post('/organizations/members', {
+
+		toast.promise(
+			api.post('/organizations/members', {
 				email: newEmail,
 				role: newRole,
-			});
-			setIsAddModalOpen(false);
-			setNewEmail('');
-			setNewRole('interviewer');
-			fetchUsers();
-		} catch (err: any) {
-			alert(err.response?.data?.error || 'Failed to add member');
-		} finally {
-			setIsSubmitting(false);
-		}
+			}),
+			{
+				loading: 'Adding teammate...',
+				success: () => {
+					setIsAddModalOpen(false);
+					setNewEmail('');
+					setNewRole('interviewer');
+					fetchUsers();
+					return 'Teammate invited successfully';
+				},
+				error: (err) => err.response?.data?.error || 'Failed to add teammate',
+				finally: () => setIsSubmitting(false),
+			}
+		);
 	};
 
 	const handleDeleteUser = async (id: string) => {
 		if (!confirm('Are you sure you want to remove this member?')) return;
-		try {
-			await api.delete(`/organizations/members/${id}`);
-			fetchUsers();
-		} catch (err: any) {
-			alert(err.response?.data?.error || 'Failed to remove member');
-		}
+
+		toast.promise(api.delete(`/organizations/members/${id}`), {
+			loading: 'Removing member...',
+			success: () => {
+				fetchUsers();
+				return 'Member removed successfully';
+			},
+			error: (err) => err.response?.data?.error || 'Failed to remove member',
+		});
 	};
 
 	const handleRoleChange = async (id: string, newRole: Role) => {
-		try {
-			await api.put(`/organizations/members/${id}`, { role: newRole });
-			// Optimistic update
-			setUsers(users.map((u) => (u.id === id ? { ...u, role: newRole } : u)));
-		} catch (err: any) {
-			alert(err.response?.data?.error || 'Failed to update role');
-			fetchUsers(); // Revert on error
-		}
+		toast.promise(api.put(`/organizations/members/${id}`, { role: newRole }), {
+			loading: 'Updating permissions...',
+			success: () => {
+				setUsers(users.map((u) => (u.id === id ? { ...u, role: newRole } : u)));
+				return 'Permissions updated';
+			},
+			error: (err) => {
+				fetchUsers();
+				return err.response?.data?.error || 'Failed to update role';
+			},
+		});
 	};
 
 	const filteredUsers = users.filter(

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FileText, User, Plus, Calendar, Clock, Briefcase, Edit2, Send, Users } from 'lucide-react';
 import CreateInterviewModal, { SimpleUser } from './create-interview-modal';
 import { Position, UserRole } from '@/types/db';
+import { toast } from 'sonner';
 
 // Mock positions data
 const MOCK_POSITIONS: Position[] = [
@@ -94,7 +95,7 @@ export default function InterviewList() {
 
 	const handleResendEmail = (email: string) => {
 		// Mock resend email
-		alert(`Invitation email re-sent to ${email}`);
+		toast.success(`Invitation email re-sent to ${email}`);
 	};
 
 	const handleCloseModal = () => {

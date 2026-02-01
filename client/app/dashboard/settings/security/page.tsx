@@ -4,44 +4,39 @@ import { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { KeyRound, Loader2, Save, ShieldCheck } from 'lucide-react';
 
+import { toast } from 'sonner';
+
 export default function SecuritySettings() {
 	const supabase = createClient();
 	const [newPassword, setNewPassword] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
 	const handleUpdatePassword = async (e: React.FormEvent) => {
 		e.preventDefault();
-		setMessage(null);
 
 		if (newPassword !== confirmPassword) {
-			setMessage({ type: 'error', text: 'Passwords do not match' });
+			toast.error('Passwords do not match');
 			return;
 		}
 
 		if (newPassword.length < 6) {
-			setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+			toast.error('Password must be at least 6 characters');
 			return;
 		}
 
 		setIsLoading(true);
 
-		try {
-			const { error } = await supabase.auth.updateUser({
-				password: newPassword,
-			});
-
-			if (error) throw error;
-
-			setMessage({ type: 'success', text: 'Password updated successfully' });
-			setNewPassword('');
-			setConfirmPassword('');
-		} catch (err: any) {
-			setMessage({ type: 'error', text: err.message || 'Failed to update password' });
-		} finally {
-			setIsLoading(false);
-		}
+		toast.promise(supabase.auth.updateUser({ password: newPassword }), {
+			loading: 'Updating your password...',
+			success: () => {
+				setNewPassword('');
+				setConfirmPassword('');
+				return 'Password updated successfully';
+			},
+			error: (err) => err.message || 'Failed to update password',
+			finally: () => setIsLoading(false),
+		});
 	};
 
 	return (
@@ -59,17 +54,6 @@ export default function SecuritySettings() {
 			<form
 				onSubmit={handleUpdatePassword}
 				className='space-y-5 max-w-md'>
-				{message && (
-					<div
-						className={`rounded-lg p-3 text-sm ${
-							message.type === 'success'
-								? 'bg-green-500/10 text-green-500 border border-green-500/20'
-								: 'bg-red-500/10 text-red-500 border border-red-500/20'
-						}`}>
-						{message.text}
-					</div>
-				)}
-
 				<div className='space-y-4'>
 					<div>
 						<label
