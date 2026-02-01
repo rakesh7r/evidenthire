@@ -9,6 +9,7 @@
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
+		"@types/nodemailer": "^7.0.9",
 		"@types/pg": "^8.16.0"
 	},
 	"peerDependencies": {
@@ -17,7 +18,9 @@
 	"dependencies": {
 		"@supabase/supabase-js": "^2.93.3",
 		"hono": "^4.11.7",
+		"ics": "^3.8.1",
 		"livekit-server-sdk": "^2.15.0",
+		"nodemailer": "^7.0.13",
 		"postgres": "^3.4.8",
 		"resend": "^6.9.1"
 	}

@@ -97,7 +97,7 @@ export default function DashboardStats() {
 					</div>
 				</div>
 				<div className='mt-4 flex items-center text-sm text-green-500/80'>
-					<span className='font-medium'>Active hiring pipelines</span>
+					<span className='font-medium'>Active job positions</span>
 				</div>
 			</div>
 		</div>

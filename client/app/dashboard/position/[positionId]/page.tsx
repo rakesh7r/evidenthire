@@ -1,161 +1,69 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import {
-	ArrowLeft,
-	Briefcase,
-	Calendar,
-	Clock,
-	Mail,
-	Search,
-	User,
-	Filter,
-	MoreHorizontal,
-	CheckCircle2,
-	XCircle,
-	Clock3,
-} from 'lucide-react';
-import { notFound, useParams } from 'next/navigation';
+import api from '@/lib/api';
 
-// Types (Ideally shared)
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Briefcase, User, AlertCircle } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import CandidateInterviews from '@/components/candidate-interviews';
+
 interface Skill {
 	name: string;
 	level: 'junior' | 'intermediate' | 'senior' | 'expert';
 }
 
 interface Requirements {
-	skills: Skill[];
-	interview_types: string[];
-	evaluation_weights: Record<string, number>;
+	skills?: Skill[];
+	interview_types?: string[];
+	evaluation_weights?: Record<string, number>;
 }
 
 interface Position {
 	id: string;
 	title: string;
-	requirements: Requirements;
+	requirements?: Requirements;
 	status: 'open' | 'closed';
-	candidatesCount: number;
 	description?: string;
+	// Extra fields from join or separate stats call if needed,
+	// but getPositionById only returns * from position table.
+	// We might need to fetch candidate count separately or let PipelineBoard handle it.
 }
-
-interface Interview {
-	id: string;
-	candidateName: string;
-	candidateEmail: string;
-	date: string;
-	time: string;
-	status: 'scheduled' | 'completed' | 'cancelled';
-	score?: number;
-}
-
-// Mock Data (Duplicated for now, ideally moved to a shared store/context)
-const MOCK_POSITIONS: Position[] = [
-	{
-		id: '1',
-		title: 'Senior Frontend Engineer',
-		requirements: {
-			skills: [
-				{ name: 'React', level: 'senior' },
-				{ name: 'TypeScript', level: 'senior' },
-				{ name: 'Tailwind', level: 'intermediate' },
-			],
-			interview_types: ['technical', 'cultural_fit'],
-			evaluation_weights: { communication: 0.3, problem_solving: 0.5, depth: 0.2 },
-		},
-		status: 'open',
-		candidatesCount: 12,
-		description:
-			'We are looking for a Senior Frontend Engineer to join our team and help build the next generation of our product. You will be working with modern technologies like React, TypeScript, and Tailwind CSS.',
-	},
-	{
-		id: '2',
-		title: 'Product Designer',
-		requirements: {
-			skills: [
-				{ name: 'Figma', level: 'senior' },
-				{ name: 'UI/UX', level: 'senior' },
-				{ name: 'Prototyping', level: 'intermediate' },
-			],
-			interview_types: ['portfolio_review', 'cultural_fit'],
-			evaluation_weights: { communication: 0.4, problem_solving: 0.3, depth: 0.3 },
-		},
-		status: 'open',
-		candidatesCount: 8,
-		description:
-			'Join our design team to create beautiful and intuitive user experiences. You should be proficient in Figma and have a strong portfolio.',
-	},
-	{
-		id: '3',
-		title: 'Backend Developer',
-		requirements: {
-			skills: [
-				{ name: 'Go', level: 'intermediate' },
-				{ name: 'PostgreSQL', level: 'senior' },
-				{ name: 'Docker', level: 'intermediate' },
-			],
-			interview_types: ['technical', 'system_design'],
-			evaluation_weights: { communication: 0.2, problem_solving: 0.5, depth: 0.3 },
-		},
-		status: 'closed',
-		candidatesCount: 45,
-		description:
-			'We need a Backend Developer to scale our infrastructure. Experience with Go and distributed systems is a plus.',
-	},
-];
-
-const MOCK_INTERVIEWS: Interview[] = [
-	{
-		id: '101',
-		candidateName: 'John Doe',
-		candidateEmail: 'john@example.com',
-		date: '2024-02-15',
-		time: '10:00',
-		status: 'scheduled',
-	},
-	{
-		id: '102',
-		candidateName: 'Jane Smith',
-		candidateEmail: 'jane@example.com',
-		date: '2024-02-14',
-		time: '14:30',
-		status: 'completed',
-		score: 8.5,
-	},
-	{
-		id: '103',
-		candidateName: 'Alice Johnson',
-		candidateEmail: 'alice@example.com',
-		date: '2024-02-16',
-		time: '11:00',
-		status: 'cancelled',
-	},
-	{
-		id: '104',
-		candidateName: 'Bob Brown',
-		candidateEmail: 'bob@example.com',
-		date: '2024-02-15',
-		time: '09:00',
-		status: 'scheduled',
-	},
-];
 
 export default function PositionDetailsPage() {
-	// In a real app, we fetch data based on params.positionId
-	// Since this is a client component for now (marked by 'use client'), we can find it directly.
-
 	const params = useParams();
 	const positionId = typeof params.positionId === 'string' ? params.positionId : '';
 
-	// We need to resolve the ID properly match the mock data
-	const position = MOCK_POSITIONS.find((p) => p.id === positionId);
+	const [position, setPosition] = useState<Position | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState('');
 
-	const [searchTerm, setSearchTerm] = useState('');
+	useEffect(() => {
+		if (!positionId) return;
 
-	if (!position) {
+		const fetchPosition = async () => {
+			try {
+				const { data } = await api.get(`/positions/${positionId}`);
+				setPosition(data);
+			} catch (err: any) {
+				setError(err.message || 'Failed to fetch position');
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchPosition();
+	}, [positionId]);
+
+	if (loading) {
+		return <div className='p-12 text-center text-slate-500'>Loading position...</div>;
+	}
+
+	if (error || !position) {
 		return (
 			<div className='flex flex-col items-center justify-center p-12 text-center'>
 				<h2 className='text-xl font-semibold text-white'>Position Not Found</h2>
+				<p className='text-slate-500 mb-4'>{error}</p>
 				<Link
 					href='/dashboard'
 					className='mt-4 text-orange-500 hover:text-orange-400'>
@@ -165,11 +73,11 @@ export default function PositionDetailsPage() {
 		);
 	}
 
-	// Filter interviews (mock logic - assuming all mock interviews belong to this position for demo purposes,
-	// or we can just filter strictly if we added positionId to interviews. Let's filter by email for the requirement)
-	const filteredInterviews = MOCK_INTERVIEWS.filter((interview) =>
-		interview.candidateEmail.toLowerCase().includes(searchTerm.toLowerCase())
-	);
+	// Default requirements if missing/empty
+	const requirements = position.requirements || {};
+	const skills = requirements.skills || [];
+	const interviewTypes = requirements.interview_types || [];
+	const weights = requirements.evaluation_weights || {};
 
 	return (
 		<div className='min-h-screen bg-slate-950 px-6 py-8'>
@@ -198,191 +106,92 @@ export default function PositionDetailsPage() {
 								/>
 								{position.status.toUpperCase()}
 							</div>
-							<span className='text-slate-500 text-sm flex items-center gap-1.5'>
-								<User className='h-4 w-4' />
-								{position.candidatesCount} Candidates
-							</span>
 						</div>
 					</div>
-					{/* Actions if needed */}
+					{/* Actions like Edit Position could go here */}
 				</div>
 			</div>
 
 			<div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
-				{/* Main Content: Pipeline / Interviews */}
+				{/* Main Content: Interviews & Reports */}
 				<div className='lg:col-span-2 space-y-6'>
 					<div className='flex items-center justify-between'>
-						<h2 className='text-xl font-semibold text-white'>Interview Pipeline</h2>
-						<div className='relative w-64'>
-							<Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500' />
-							<input
-								type='text'
-								placeholder='Search by candidate email...'
-								value={searchTerm}
-								onChange={(e) => setSearchTerm(e.target.value)}
-								className='w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-4 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
-							/>
-						</div>
+						<h2 className='text-xl font-semibold text-white'>Candidates & Interviews</h2>
 					</div>
 
-					<div className='space-y-4'>
-						{filteredInterviews.length === 0 ? (
-							<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-8 text-center'>
-								<p className='text-slate-400'>No interviews found matching your search.</p>
-							</div>
-						) : (
-							// Group interviews by candidate
-							Object.entries(
-								filteredInterviews.reduce((acc, interview) => {
-									if (!acc[interview.candidateEmail]) {
-										acc[interview.candidateEmail] = {
-											name: interview.candidateName,
-											email: interview.candidateEmail,
-											rounds: [],
-										};
-									}
-									acc[interview.candidateEmail].rounds.push(interview);
-									return acc;
-								}, {} as Record<string, { name: string; email: string; rounds: Interview[] }>)
-							).map(([email, candidate]) => (
-								<div
-									key={email}
-									className='rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden'>
-									{/* Candidate Header */}
-									<div className='bg-slate-800/50 p-4 border-b border-slate-800 flex items-center justify-between'>
-										<div className='flex items-center gap-3'>
-											<div className='flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-slate-300 font-semibold border border-slate-600'>
-												{candidate.name.charAt(0)}
-											</div>
-											<div>
-												<h3 className='font-medium text-white'>{candidate.name}</h3>
-												<div className='flex items-center gap-1.5 text-xs text-slate-400'>
-													<Mail className='h-3 w-3' />
-													{candidate.email}
-												</div>
-											</div>
-										</div>
-										<div className='text-xs font-medium text-slate-500 bg-slate-800 px-2 py-1 rounded border border-slate-700'>
-											{candidate.rounds.length} Round{candidate.rounds.length !== 1 ? 's' : ''}
-										</div>
-									</div>
-
-									{/* Rounds List */}
-									<div className='divide-y divide-slate-800/50'>
-										{candidate.rounds.map((round, index) => (
-											<div
-												key={round.id}
-												className='p-4 hover:bg-slate-800/30 transition-colors flex items-center justify-between group'>
-												<div className='flex items-center gap-4'>
-													<div className='flex flex-col items-center min-w-12'>
-														<span className='text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5'>
-															Round
-														</span>
-														<span className='text-lg font-bold text-white'>{index + 1}</span>
-													</div>
-
-													<div className='h-8 w-px bg-slate-800 mx-2'></div>
-
-													<div className='space-y-1'>
-														<div className='flex items-center gap-3 text-sm text-slate-300'>
-															<div className='flex items-center gap-1.5'>
-																<Calendar className='h-3.5 w-3.5 text-slate-500' />
-																{new Date(round.date).toLocaleDateString()}
-															</div>
-															<div className='flex items-center gap-1.5'>
-																<Clock className='h-3.5 w-3.5 text-slate-500' />
-																{round.time}
-															</div>
-														</div>
-														<div className='flex items-center gap-2'>
-															<div
-																className={`px-2 py-0.5 rounded text-[10px] font-medium border uppercase tracking-wide ${
-																	round.status === 'completed'
-																		? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-																		: round.status === 'scheduled'
-																		? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-																		: 'bg-red-500/10 text-red-400 border-red-500/20'
-																}`}>
-																{round.status}
-															</div>
-															{round.score && (
-																<span className='text-xs font-medium text-emerald-400 flex items-center gap-1'>
-																	Score: {round.score}/10
-																</span>
-															)}
-														</div>
-													</div>
-												</div>
-
-												<button className='opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium text-orange-500 hover:text-orange-400 px-3 py-1.5 rounded hover:bg-orange-500/10'>
-													View Report
-												</button>
-											</div>
-										))}
-									</div>
-								</div>
-							))
-						)}
-					</div>
+					<CandidateInterviews positionId={positionId} />
 				</div>
 
 				{/* Sidebar: Details & Requirements */}
 				<div className='space-y-6'>
-					{/* About */}
-					<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
-						<h3 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
-							<Briefcase className='h-5 w-5 text-orange-500' />
-							Use this template for
-						</h3>
-						<div className='flex flex-wrap gap-2'>
-							{position.requirements.skills.map((skill, i) => (
-								<span
-									key={i}
-									className='inline-flex items-center rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300 border border-slate-700'>
-									{skill.name} • {skill.level}
-								</span>
-							))}
+					{/* Skills */}
+					{skills.length > 0 && (
+						<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
+							<h3 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
+								<Briefcase className='h-5 w-5 text-orange-500' />
+								Required Skills
+							</h3>
+							<div className='flex flex-wrap gap-2'>
+								{skills.map((skill, i) => (
+									<span
+										key={i}
+										className='inline-flex items-center rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300 border border-slate-700'>
+										{skill.name} • {skill.level}
+									</span>
+								))}
+							</div>
 						</div>
-					</div>
+					)}
 
 					{/* Interview Types */}
-					<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
-						<h3 className='text-lg font-semibold text-white mb-4'>Interview Structure</h3>
-						<ul className='space-y-3'>
-							{position.requirements.interview_types.map((type, i) => (
-								<li
-									key={i}
-									className='flex items-center gap-3 text-sm text-slate-300'>
-									<div className='h-2 w-2 rounded-full bg-orange-500' />
-									{type
-										.split('_')
-										.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-										.join(' ')}
-								</li>
-							))}
-						</ul>
-					</div>
+					{interviewTypes.length > 0 && (
+						<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
+							<h3 className='text-lg font-semibold text-white mb-4'>Interview Structure</h3>
+							<ul className='space-y-3'>
+								{interviewTypes.map((type, i) => (
+									<li
+										key={i}
+										className='flex items-center gap-3 text-sm text-slate-300'>
+										<div className='h-2 w-2 rounded-full bg-orange-500' />
+										{type
+											.split('_')
+											.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+											.join(' ')}
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
 
 					{/* Evaluation Weights */}
-					<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
-						<h3 className='text-lg font-semibold text-white mb-4'>Evaluation Criteria</h3>
-						<div className='space-y-4'>
-							{Object.entries(position.requirements.evaluation_weights).map(([key, value]) => (
-								<div key={key}>
-									<div className='flex justify-between text-xs text-slate-400 mb-1.5'>
-										<span className='uppercase'>{key.replace('_', ' ')}</span>
-										<span>{(value as number) * 100}%</span>
+					{Object.keys(weights).length > 0 && (
+						<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
+							<h3 className='text-lg font-semibold text-white mb-4'>Evaluation Criteria</h3>
+							<div className='space-y-4'>
+								{Object.entries(weights).map(([key, value]) => (
+									<div key={key}>
+										<div className='flex justify-between text-xs text-slate-400 mb-1.5'>
+											<span className='uppercase'>{key.replace('_', ' ')}</span>
+											<span>{(value as number) * 100}%</span>
+										</div>
+										<div className='h-1.5 w-full rounded-full bg-slate-800'>
+											<div
+												className='h-full rounded-full bg-blue-500'
+												style={{ width: `${(value as number) * 100}%` }}
+											/>
+										</div>
 									</div>
-									<div className='h-1.5 w-full rounded-full bg-slate-800'>
-										<div
-											className='h-full rounded-full bg-blue-500'
-											style={{ width: `${(value as number) * 100}%` }}
-										/>
-									</div>
-								</div>
-							))}
+								))}
+							</div>
 						</div>
-					</div>
+					)}
+
+					{/* Fallback if no requirements */}
+					{skills.length === 0 && interviewTypes.length === 0 && Object.keys(weights).length === 0 && (
+						<div className='rounded-xl border border-dashed border-slate-800 p-6 text-center text-slate-500'>
+							No specific requirements defined for this position.
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

@@ -90,7 +90,7 @@ export default function PositionManagement() {
 			<div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
 				<div>
 					<h2 className='text-xl font-semibold text-white'>Job Positions</h2>
-					<p className='mt-1 text-sm text-slate-400'>Manage hiring roles and view candidate pipelines.</p>
+					<p className='mt-1 text-sm text-slate-400'>Manage hiring roles and view position details.</p>
 				</div>
 				<button
 					onClick={() => {
@@ -193,7 +193,7 @@ export default function PositionManagement() {
 								<Link
 									href={`/dashboard/position/${pos.id}`}
 									className='text-orange-500 hover:text-orange-400 font-medium text-xs uppercase tracking-wide'>
-									View Pipeline →
+									View Details →
 								</Link>
 							</div>
 						</div>

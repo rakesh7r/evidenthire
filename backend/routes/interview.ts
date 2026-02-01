@@ -7,8 +7,11 @@ import {
 	updateInterview,
 	deleteInterview,
 	getPublicInterviewById,
+	verifyInterviewAccess,
+	resendInvitation,
 } from '../services/interview.service';
 import { createAccessToken } from '../services/livekit.service';
+import { verifyToken } from '../middleware/auth';
 
 const interviews = new Hono<AuthEnv>();
 
@@ -21,36 +24,76 @@ interviews.get('/public/:id', async (c) => {
 		if (!result) {
 			return c.json({ error: 'Interview not found' }, 404);
 		}
-		return c.json(result);
+		// Remove sensitive access key from public response
+		const { candidate_access_key, ...safeResult } = result as any;
+		return c.json(safeResult);
 	} catch (err: any) {
 		console.error(`Error fetching public interview ${id}:`, err);
 		return c.json({ error: err.message }, 500);
 	}
 });
 
-// Public Route: Get LiveKit token
-interviews.get('/public/:id/token', async (c) => {
+// Public Route: Validate candidate credentials
+interviews.get('/public/:id/validate', async (c) => {
 	const id = c.req.param('id');
-	const name = c.req.query('name');
-	const identity = c.req.query('identity');
+	const email = c.req.query('email');
+	const candidateAccessKey = c.req.query('candidate_access_key');
 
-	if (!name || !identity) {
-		return c.json({ error: 'Name and identity are required' }, 400);
+	if (!email || !candidateAccessKey) {
+		return c.json({ valid: false, error: 'Missing credentials' }, 400);
 	}
 
 	try {
-		const interview = await getPublicInterviewById(id);
-		if (!interview) {
-			return c.json({ error: 'Interview not found' }, 404);
+		const participant = await verifyInterviewAccess(id, email, candidateAccessKey);
+		if (participant && participant.role === 'candidate') {
+			return c.json({ valid: true });
+		}
+		return c.json({ valid: false, error: 'Invalid credentials' }, 403);
+	} catch (err: any) {
+		console.error(`Error validating interview access ${id}:`, err);
+		return c.json({ error: err.message }, 500);
+	}
+});
+
+// Public Route: Get LiveKit token securely
+interviews.get('/public/:id/token', async (c) => {
+	const id = c.req.param('id');
+
+	// Candidate params
+	const email = c.req.query('email');
+	const candidateAccessKey = c.req.query('candidate_access_key');
+
+	// Interviewer auth
+	let userId: string | undefined;
+	const authHeader = c.req.header('Authorization');
+	if (authHeader) {
+		try {
+			const token = authHeader.replace('Bearer ', '');
+			// Use our existing middleware logic or helper to verify
+			const payload = await verifyToken(token);
+			if (payload && payload.sub) {
+				userId = payload.sub;
+			}
+		} catch (e) {
+			// Invalid token, ignore and proceed as guest/candidate attempt
+			console.log('Token verification failed in public route', e);
+		}
+	}
+
+	try {
+		const participant = await verifyInterviewAccess(id, email || '', candidateAccessKey, userId);
+
+		if (!participant) {
+			return c.json({ error: 'Unauthorized: Invalid credentials or access key' }, 403);
 		}
 
 		// Use the interview ID as the room name
-		const token = await createAccessToken(id, identity, name, {
+		const token = await createAccessToken(id, participant.identity, participant.name, {
 			interviewId: id,
-			role: 'participant',
+			role: participant.role,
 		});
 
-		return c.json({ token });
+		return c.json({ token, participant });
 	} catch (err: any) {
 		console.error(`Error generating token for interview ${id}:`, err);
 		return c.json({ error: err.message }, 500);
@@ -130,6 +173,22 @@ interviews.put('/:id', async (c) => {
 		return c.json(result);
 	} catch (err: any) {
 		console.error(`Error updating interview ${id}:`, err);
+		const status = err.message.includes('Unauthorized') ? 403 : 500;
+		return c.json({ error: err.message }, status);
+	}
+});
+
+/**
+ * Resend invitation/reminder for an interview
+ */
+interviews.post('/:id/invite', async (c) => {
+	const user = c.get('user');
+	const id = c.req.param('id');
+	try {
+		await resendInvitation(user.id, id);
+		return c.json({ message: 'Invitation resent successfully' });
+	} catch (err: any) {
+		console.error(`Error resending invitation for interview ${id}:`, err);
 		const status = err.message.includes('Unauthorized') ? 403 : 500;
 		return c.json({ error: err.message }, status);
 	}

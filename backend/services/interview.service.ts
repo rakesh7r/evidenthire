@@ -1,5 +1,10 @@
 import { sql } from '../db';
-import { notifyInterviewScheduled, notifyInterviewCancelled } from './email.service';
+import {
+	notifyInterviewScheduled,
+	notifyInterviewCancelled,
+	resendCandidateReminder,
+	notifyInterviewUpdated,
+} from './email.service';
 
 export const getInterviewsByOrg = async (userId: string) => {
 	const user = await sql`SELECT organization_id FROM user_account WHERE id = ${userId}`;
@@ -61,9 +66,16 @@ export const getPublicInterviewById = async (interviewId: string) => {
             i.id,
             i.scheduled_start,
             i.status,
+            i.candidate_access_key,
             c.name as candidate_name, 
+            c.email as candidate_email,
             p.title as position_title,
-            o.name as organization_name
+            o.name as organization_name,
+             (
+                SELECT array_agg(user_id) 
+                FROM interview_participant 
+                WHERE interview_id = i.id
+            ) as interviewer_ids
         FROM interview i
         JOIN candidate c ON i.candidate_id = c.id
         JOIN position p ON i.position_id = p.id
@@ -71,6 +83,49 @@ export const getPublicInterviewById = async (interviewId: string) => {
         WHERE i.id = ${interviewId}
     `;
 	return interviews[0];
+};
+
+export const verifyInterviewAccess = async (
+	interviewId: string,
+	email: string,
+	accessKey?: string,
+	userId?: string
+) => {
+	const interview = await getPublicInterviewById(interviewId);
+	if (!interview) return null;
+
+	// 1. Check if Candidate
+	if (
+		accessKey &&
+		interview.candidate_access_key === accessKey &&
+		interview.candidate_email.toLowerCase() === email.toLowerCase() &&
+		interviewId === interviewId
+	) {
+		return {
+			role: 'candidate',
+			name: interview.candidate_name,
+			identity: `candidate-${interview.candidate_email}`,
+		};
+	}
+
+	// 2. Check if Interviewer (Authenticated User)
+	if (userId) {
+		// Here we rely on the fact that interviewer_ids contains user_ids
+		// But getPublicInterviewById returns standard array.
+		// We need to verify if userId is in interviewer_ids
+		if (interview.interviewer_ids && interview.interviewer_ids.includes(userId)) {
+			// Fetch user name for identity
+			const user = await sql`SELECT full_name, email FROM user_account WHERE id = ${userId}`;
+			const userData = user[0];
+			return {
+				role: 'interviewer',
+				name: userData?.full_name || userData?.email || 'Interviewer',
+				identity: `interviewer-${userId}`,
+			};
+		}
+	}
+
+	return null;
 };
 
 export const createInterview = async (
@@ -117,9 +172,13 @@ export const createInterview = async (
 		const scheduledStart = new Date(`${data.date}T${data.time}`);
 
 		// 2. Create interview
+		// Generate a random access key for the candidate
+		const candidateAccessKey =
+			Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
 		const interview = await tx`
-            INSERT INTO interview (position_id, candidate_id, scheduled_start, status)
-            VALUES (${data.positionId}, ${candidateId}, ${scheduledStart}, 'scheduled')
+            INSERT INTO interview (position_id, candidate_id, scheduled_start, status, candidate_access_key)
+            VALUES (${data.positionId}, ${candidateId}, ${scheduledStart}, 'scheduled', ${candidateAccessKey})
             RETURNING *
         `;
 
@@ -174,6 +233,7 @@ export const createInterview = async (
 				positionTitle: interview.position_title,
 				scheduledStart: new Date(interview.scheduled_start),
 				interviewerEmails: interview.interviewer_emails || [],
+				candidateAccessKey: interview.candidate_access_key,
 			});
 		}
 	} catch (err) {
@@ -207,7 +267,7 @@ export const updateInterview = async (
 		throw new Error('Unauthorized: Only admins and recruiters can update interviews');
 	}
 
-	return await sql.begin(async (tx: any) => {
+	const result = await sql.begin(async (tx: any) => {
 		// Verify interview belongs to user's org
 		const existing = await tx`
             SELECT i.id, i.candidate_id 
@@ -279,6 +339,44 @@ export const updateInterview = async (
 		if (!finalRow) throw new Error('Failed to update interview');
 		return finalRow;
 	});
+
+	// 4. Send update notification
+	try {
+		const fullDetails = await sql`
+            SELECT 
+                i.*, 
+                c.name as candidate_name, 
+                c.email as candidate_email,
+                p.title as position_title,
+                (
+                    SELECT array_agg(u.email) 
+                    FROM interview_participant ip
+                    JOIN user_account u ON ip.user_id = u.id
+                    WHERE ip.interview_id = i.id
+                ) as interviewer_emails
+            FROM interview i
+            JOIN candidate c ON i.candidate_id = c.id
+            JOIN position p ON i.position_id = p.id
+            WHERE i.id = ${result.id}
+        `;
+
+		const interview = fullDetails[0];
+		if (interview) {
+			await notifyInterviewUpdated({
+				interviewId: interview.id,
+				candidateEmail: interview.candidate_email,
+				candidateName: interview.candidate_name,
+				positionTitle: interview.position_title,
+				scheduledStart: new Date(interview.scheduled_start),
+				interviewerEmails: interview.interviewer_emails || [],
+				candidateAccessKey: interview.candidate_access_key,
+			});
+		}
+	} catch (err) {
+		console.error('Failed to send update notification:', err);
+	}
+
+	return result;
 };
 
 export const deleteInterview = async (userId: string, interviewId: string) => {
@@ -357,4 +455,55 @@ export const deleteInterview = async (userId: string, interviewId: string) => {
 	}
 
 	return result;
+};
+export const resendInvitation = async (userId: string, interviewId: string) => {
+	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
+	const userData = user[0];
+
+	if (!userData || !userData.organization_id) {
+		throw new Error('User is not part of an organization');
+	}
+
+	if (!['admin', 'recruiter'].includes(userData.role)) {
+		throw new Error('Unauthorized: Only admins and recruiters can send reminders');
+	}
+
+	// Fetch full details
+	const interviewDetails = await sql`
+        SELECT 
+            i.*, 
+            c.name as candidate_name, 
+            c.email as candidate_email,
+            p.title as position_title
+        FROM interview i
+        JOIN candidate c ON i.candidate_id = c.id
+        JOIN position p ON i.position_id = p.id
+        WHERE i.id = ${interviewId} AND p.organization_id = ${userData.organization_id}
+    `;
+
+	const interview = interviewDetails[0];
+	if (!interview) {
+		throw new Error('Interview not found or unauthorized');
+	}
+
+	// Ensure access key exists
+	let accessKey = interview.candidate_access_key;
+	if (!accessKey) {
+		accessKey = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+		await sql`UPDATE interview SET candidate_access_key = ${accessKey} WHERE id = ${interview.id}`;
+	}
+
+	try {
+		await resendCandidateReminder({
+			interviewId: interview.id,
+			candidateEmail: interview.candidate_email,
+			candidateName: interview.candidate_name,
+			positionTitle: interview.position_title,
+			scheduledStart: new Date(interview.scheduled_start),
+			candidateAccessKey: accessKey,
+		});
+		return { success: true };
+	} catch (err: any) {
+		throw new Error(`Failed to send email: ${err.message}`);
+	}
 };
