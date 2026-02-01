@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { WebhookReceiver, TrackType } from 'livekit-server-sdk';
+import { TrackType, WebhookReceiver } from 'livekit-server-sdk';
 import { startRoomAudioRecording, startTrackAudioRecording } from '../services/livekit.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
@@ -39,39 +39,24 @@ webhook.post('/', async (c) => {
 
 			case 'track_published':
 				if (event.track?.type === TrackType.AUDIO) {
-					console.log(`Audio track published: ${event.track.sid} in room ${roomName}. Starting direct S3 egress...`);
+					const payload = {
+						event: 'track_published',
+						roomName,
+						trackSid: event.track.sid,
+						interviewId,
+						timestamp: new Date().toISOString(),
+					};
 
-					// Push to SQS
-					if (process.env.AWS_SQS_QUEUE_URL) {
-						try {
-							const payload = {
-								event: 'track_published',
-								roomName,
-								trackSid: event.track.sid,
-								interviewId,
-								timestamp: new Date().toISOString(),
-							};
+					console.log('payload', payload);
 
-							console.log('payload', payload);
+					await sqsClient.send(
+						new SendMessageCommand({
+							QueueUrl: process.env.AWS_SQS_QUEUE_URL!,
+							MessageBody: JSON.stringify(payload),
+						})
+					);
 
-							await sqsClient.send(
-								new SendMessageCommand({
-									QueueUrl: process.env.AWS_SQS_QUEUE_URL,
-									MessageBody: JSON.stringify(payload),
-								})
-							);
-							console.log('Pushed track_published event to SQS');
-						} catch (sqsRelayError) {
-							console.error('Failed to push to SQS:', sqsRelayError);
-						}
-					}
-
-					// No websocket needed. We just trigger the egress with S3 config.
-					try {
-						await startTrackAudioRecording(roomName, event.track.sid, interviewId);
-					} catch (e) {
-						console.error('Failed to start track egress:', e);
-					}
+					await startTrackAudioRecording(roomName, event.track.sid, interviewId);
 				}
 				break;
 		}
