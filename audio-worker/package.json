@@ -1,0 +1,16 @@
+{
+  "name": "audio-worker",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.980.0",
+    "dotenv": "^17.2.3"
+  }
+}
