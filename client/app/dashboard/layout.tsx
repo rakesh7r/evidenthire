@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { Loader2 } from 'lucide-react';
+import DashboardSidebar from '@/components/dashboard-sidebar';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
+	const [user, setUser] = useState<any>(null);
 
 	useEffect(() => {
 		const checkUser = async () => {
 			try {
-				await api.get('/users/me');
+				const res = await api.get('/users/me');
+				setUser(res.data);
 				setIsLoading(false);
 			} catch (error: any) {
 				console.error('Dashboard checkUser error:', error);
@@ -38,5 +41,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 		);
 	}
 
-	return <>{children}</>;
+	return (
+		<div className='flex h-screen bg-slate-900 text-slate-50 overflow-hidden'>
+			<DashboardSidebar user={user} />
+			<main className='flex-1 overflow-y-auto'>{children}</main>
+		</div>
+	);
 }

@@ -62,6 +62,10 @@ export const removeMember = async (requesterId: string, targetUserId: string) =>
 		throw new Error('Target user is not in your organization');
 	}
 
+	if (requesterId === targetUserId) {
+		throw new Error('You cannot remove yourself from the organization');
+	}
+
 	// Set org_id to null
 	const result = await sql`
         UPDATE user_account 

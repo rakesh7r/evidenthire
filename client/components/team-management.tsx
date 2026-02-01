@@ -176,12 +176,14 @@ export default function TeamManagement({ currentUserId }: { currentUserId: strin
 								</span>
 							</div>
 
-							<button
-								onClick={() => handleDeleteUser(user.id)}
-								className='rounded p-1.5 text-slate-500 opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100'
-								title='Remove user'>
-								<Trash2 className='h-4 w-4' />
-							</button>
+							{user.id !== currentUserId && (
+								<button
+									onClick={() => handleDeleteUser(user.id)}
+									className='rounded p-1.5 text-slate-500 opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100'
+									title='Remove user'>
+									<Trash2 className='h-4 w-4' />
+								</button>
+							)}
 						</div>
 					</div>
 				))}
