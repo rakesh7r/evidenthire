@@ -44,16 +44,20 @@ webhook.post('/', async (c) => {
 					// Push to SQS
 					if (process.env.AWS_SQS_QUEUE_URL) {
 						try {
+							const payload = {
+								event: 'track_published',
+								roomName,
+								trackSid: event.track.sid,
+								interviewId,
+								timestamp: new Date().toISOString(),
+							};
+
+							console.log('payload', payload);
+
 							await sqsClient.send(
 								new SendMessageCommand({
 									QueueUrl: process.env.AWS_SQS_QUEUE_URL,
-									MessageBody: JSON.stringify({
-										event: 'track_published',
-										roomName,
-										trackSid: event.track.sid,
-										interviewId,
-										timestamp: new Date().toISOString(),
-									}),
+									MessageBody: JSON.stringify(payload),
 								})
 							);
 							console.log('Pushed track_published event to SQS');
