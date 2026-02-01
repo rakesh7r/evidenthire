@@ -106,8 +106,16 @@ export default function InterviewList() {
 		setIsModalOpen(true);
 	};
 
-	const handleResendEmail = (email: string) => {
-		toast.success(`Invitation email re-sent to ${email}`);
+	const handleResendEmail = async (id: string, email: string) => {
+		const toastId = toast.loading('Resending invitation...');
+		try {
+			await api.post(`/interviews/${id}/invite`);
+			toast.success(`Invitation email re-sent to ${email}`, { id: toastId });
+		} catch (err: any) {
+			console.error('Failed to resend email:', err);
+			const errorMessage = err.response?.data?.error || 'Failed to resend email';
+			toast.error(errorMessage, { id: toastId });
+		}
 	};
 
 	const handleDeleteInterview = async (id: string) => {
@@ -233,7 +241,7 @@ export default function InterviewList() {
 											Join Lobby
 										</Link>
 										<button
-											onClick={() => handleResendEmail(interview.candidate_email)}
+											onClick={() => handleResendEmail(interview.id, interview.candidate_email)}
 											className='p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-md transition-colors'
 											title='Resend Invitation Email'>
 											<Send className='h-4 w-4' />

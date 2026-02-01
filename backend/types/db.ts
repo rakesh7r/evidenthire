@@ -81,6 +81,7 @@ export interface Interview {
 	status: InterviewStatus;
 	evidence_state: EvidenceState;
 	livekit_room_id?: string | null;
+	candidate_access_key?: string | null;
 	created_at: string; // ISO Date string
 }
 

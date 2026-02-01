@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
 	Video,
 	Mic,
@@ -35,6 +35,7 @@ interface PublicInterview {
 export default function JoinInterviewPage() {
 	const { id } = useParams();
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [interview, setInterview] = useState<PublicInterview | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -151,10 +152,16 @@ export default function JoinInterviewPage() {
 			const participantName = interview.candidate_name || 'Guest User';
 			const identity = `user-${Math.random().toString(36).substr(2, 9)}`;
 
+			// Get auth params from URL if present
+			const email = searchParams.get('email');
+			const userKey = searchParams.get('userKey');
+
 			const res = await api.get(`/interviews/public/${id}/token`, {
 				params: {
 					name: participantName,
 					identity: identity,
+					email: email,
+					userKey: userKey,
 				},
 			});
 
