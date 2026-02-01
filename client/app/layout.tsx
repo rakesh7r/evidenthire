@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 import { Toaster } from 'sonner';
+import { ThemeProvider } from '@/components/theme-provider';
 
 export default function RootLayout({
 	children,
@@ -25,15 +26,22 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang='en'>
+		<html
+			lang='en'
+			suppressHydrationWarning>
 			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-				{children}
-				<Toaster
-					position='top-right'
-					theme='dark'
-					richColors
-					closeButton
-				/>
+				<ThemeProvider
+					attribute='class'
+					defaultTheme='dark'
+					enableSystem
+					disableTransitionOnChange>
+					{children}
+					<Toaster
+						position='top-right'
+						richColors
+						closeButton
+					/>
+				</ThemeProvider>
 			</body>
 		</html>
 	);

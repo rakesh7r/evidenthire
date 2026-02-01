@@ -1,9 +1,6 @@
 import nodemailer from 'nodemailer';
 import { createEvent, type EventAttributes } from 'ics';
 
-const FROM_EMAIL = process.env.FROM_EMAIL || 'EvidentHire <no-reply@evidenthire.in>';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
 // Configure Nodemailer transporter for Brevo
 const transporter = nodemailer.createTransport({
 	host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
@@ -29,7 +26,7 @@ export const sendEmail = async (to: string | string[], subject: string, html: st
 	try {
 		const toAddress = Array.isArray(to) ? to.join(', ') : to;
 		const info = await transporter.sendMail({
-			from: FROM_EMAIL,
+			from: process.env.FROM_EMAIL,
 			to: toAddress,
 			subject,
 			html,
@@ -71,7 +68,7 @@ export const notifyInterviewScheduled = async (data: {
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 	// Base link
-	const baseLink = `${APP_URL}/interview/${data.interviewId}`;
+	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
@@ -186,7 +183,7 @@ export const notifyInterviewScheduled = async (data: {
                 </div>
                 <div style="margin: 20px 0;">
                     <a href="${baseLink}?isInterviewer=true" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
-                    <a href="${APP_URL}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
+                    <a href="${process.env.APP_URL}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
                 </div>
                 <p>Please review the candidate's profile and the interview guidelines in the dashboard.</p>
             </div>
@@ -241,7 +238,7 @@ export const notifyInterviewUpdated = async (data: {
 	// Reuse logic from scheduled but change title/subject
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	const baseLink = `${APP_URL}/interview/${data.interviewId}`;
+	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
 				data.candidateAccessKey
@@ -377,7 +374,7 @@ export const resendCandidateReminder = async (data: {
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 	// Base link
-	const baseLink = `${APP_URL}/interview/${data.interviewId}`;
+	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${

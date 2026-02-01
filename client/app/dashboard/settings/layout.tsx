@@ -40,11 +40,13 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 								className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all ${
 									isActive
 										? 'bg-orange-600 text-white shadow-lg shadow-orange-500/20'
-										: 'text-slate-400 hover:bg-slate-800 hover:text-white'
+										: 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
 								}`}>
 								<Icon
 									className={`flex-shrink-0 -ml-1 mr-3 h-5 w-5 ${
-										isActive ? 'text-white' : 'text-slate-500 group-hover:text-white'
+										isActive
+											? 'text-white'
+											: 'text-slate-400 dark:text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white'
 									}`}
 								/>
 								<span className='truncate'>{item.title}</span>
@@ -56,7 +58,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
 			{/* Content Area */}
 			<div className='flex-1 min-w-0'>
-				<div className='bg-slate-900/50 rounded-xl border border-slate-800 shadow-xl overflow-hidden min-h-[500px]'>
+				<div className='bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden min-h-[500px] transition-colors duration-300'>
 					{children}
 				</div>
 			</div>

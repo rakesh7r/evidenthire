@@ -4,9 +4,10 @@ import api from '@/lib/api';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Briefcase, User, AlertCircle } from 'lucide-react';
 import { useParams } from 'next/navigation';
+import { ArrowLeft, Briefcase, User, AlertCircle } from 'lucide-react';
 import CandidateInterviews from '@/components/candidate-interviews';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 interface Skill {
 	name: string;
@@ -80,18 +81,18 @@ export default function PositionDetailsPage() {
 	const weights = requirements.evaluation_weights || {};
 
 	return (
-		<div className='min-h-screen bg-slate-950 px-6 py-8'>
+		<div className='min-h-screen bg-white dark:bg-slate-950 px-6 py-8 transition-colors duration-300'>
 			{/* Header */}
 			<div className='mb-8'>
 				<Link
 					href='/dashboard'
-					className='inline-flex items-center text-sm text-slate-400 hover:text-white transition-colors mb-4'>
+					className='inline-flex items-center text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-4'>
 					<ArrowLeft className='mr-2 h-4 w-4' />
 					Back to Dashboard
 				</Link>
 				<div className='flex items-start justify-between'>
 					<div>
-						<h1 className='text-3xl font-bold text-white tracking-tight'>{position.title}</h1>
+						<h1 className='text-3xl font-bold text-slate-900 dark:text-white tracking-tight'>{position.title}</h1>
 						<div className='flex items-center gap-3 mt-3'>
 							<div
 								className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border ${
@@ -108,7 +109,10 @@ export default function PositionDetailsPage() {
 							</div>
 						</div>
 					</div>
-					{/* Actions like Edit Position could go here */}
+					<div className='flex items-center p-4'>
+						<ThemeToggle />
+						{/* Actions like Edit Position could go here */}
+					</div>
 				</div>
 			</div>
 
@@ -116,7 +120,7 @@ export default function PositionDetailsPage() {
 				{/* Main Content: Interviews & Reports */}
 				<div className='lg:col-span-2 space-y-6'>
 					<div className='flex items-center justify-between'>
-						<h2 className='text-xl font-semibold text-white'>Candidates & Interviews</h2>
+						<h2 className='text-xl font-semibold text-slate-900 dark:text-white'>Candidates & Interviews</h2>
 					</div>
 
 					<CandidateInterviews positionId={positionId} />
@@ -126,8 +130,8 @@ export default function PositionDetailsPage() {
 				<div className='space-y-6'>
 					{/* Skills */}
 					{skills.length > 0 && (
-						<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
-							<h3 className='text-lg font-semibold text-white mb-4 flex items-center gap-2'>
+						<div className='rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-6'>
+							<h3 className='text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2'>
 								<Briefcase className='h-5 w-5 text-orange-500' />
 								Required Skills
 							</h3>
@@ -135,7 +139,7 @@ export default function PositionDetailsPage() {
 								{skills.map((skill, i) => (
 									<span
 										key={i}
-										className='inline-flex items-center rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300 border border-slate-700'>
+										className='inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'>
 										{skill.name} • {skill.level}
 									</span>
 								))}
@@ -145,13 +149,13 @@ export default function PositionDetailsPage() {
 
 					{/* Interview Types */}
 					{interviewTypes.length > 0 && (
-						<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
-							<h3 className='text-lg font-semibold text-white mb-4'>Interview Structure</h3>
+						<div className='rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-6'>
+							<h3 className='text-lg font-semibold text-slate-900 dark:text-white mb-4'>Interview Structure</h3>
 							<ul className='space-y-3'>
 								{interviewTypes.map((type, i) => (
 									<li
 										key={i}
-										className='flex items-center gap-3 text-sm text-slate-300'>
+										className='flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300'>
 										<div className='h-2 w-2 rounded-full bg-orange-500' />
 										{type
 											.split('_')
@@ -165,16 +169,16 @@ export default function PositionDetailsPage() {
 
 					{/* Evaluation Weights */}
 					{Object.keys(weights).length > 0 && (
-						<div className='rounded-xl border border-slate-800 bg-slate-900/50 p-6'>
-							<h3 className='text-lg font-semibold text-white mb-4'>Evaluation Criteria</h3>
+						<div className='rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 p-6'>
+							<h3 className='text-lg font-semibold text-slate-900 dark:text-white mb-4'>Evaluation Criteria</h3>
 							<div className='space-y-4'>
 								{Object.entries(weights).map(([key, value]) => (
 									<div key={key}>
-										<div className='flex justify-between text-xs text-slate-400 mb-1.5'>
+										<div className='flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5'>
 											<span className='uppercase'>{key.replace('_', ' ')}</span>
 											<span>{(value as number) * 100}%</span>
 										</div>
-										<div className='h-1.5 w-full rounded-full bg-slate-800'>
+										<div className='h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-800'>
 											<div
 												className='h-full rounded-full bg-blue-500'
 												style={{ width: `${(value as number) * 100}%` }}
