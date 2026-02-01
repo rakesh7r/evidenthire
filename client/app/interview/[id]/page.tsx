@@ -153,15 +153,16 @@ export default function JoinInterviewPage() {
 			const identity = `user-${Math.random().toString(36).substr(2, 9)}`;
 
 			// Get auth params from URL if present
+			// Get auth params from URL if present
 			const email = searchParams.get('email');
-			const userKey = searchParams.get('userKey');
+			const candidateAccessKey = searchParams.get('candidate_access_key');
 
 			const res = await api.get(`/interviews/public/${id}/token`, {
 				params: {
 					name: participantName,
 					identity: identity,
 					email: email,
-					userKey: userKey,
+					candidate_access_key: candidateAccessKey,
 				},
 			});
 

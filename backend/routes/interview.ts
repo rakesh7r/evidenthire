@@ -24,9 +24,33 @@ interviews.get('/public/:id', async (c) => {
 		if (!result) {
 			return c.json({ error: 'Interview not found' }, 404);
 		}
-		return c.json(result);
+		// Remove sensitive access key from public response
+		const { candidate_access_key, ...safeResult } = result as any;
+		return c.json(safeResult);
 	} catch (err: any) {
 		console.error(`Error fetching public interview ${id}:`, err);
+		return c.json({ error: err.message }, 500);
+	}
+});
+
+// Public Route: Validate candidate credentials
+interviews.get('/public/:id/validate', async (c) => {
+	const id = c.req.param('id');
+	const email = c.req.query('email');
+	const candidateAccessKey = c.req.query('candidate_access_key');
+
+	if (!email || !candidateAccessKey) {
+		return c.json({ valid: false, error: 'Missing credentials' }, 400);
+	}
+
+	try {
+		const participant = await verifyInterviewAccess(id, email, candidateAccessKey);
+		if (participant && participant.role === 'candidate') {
+			return c.json({ valid: true });
+		}
+		return c.json({ valid: false, error: 'Invalid credentials' }, 403);
+	} catch (err: any) {
+		console.error(`Error validating interview access ${id}:`, err);
 		return c.json({ error: err.message }, 500);
 	}
 });
@@ -37,7 +61,7 @@ interviews.get('/public/:id/token', async (c) => {
 
 	// Candidate params
 	const email = c.req.query('email');
-	const userKey = c.req.query('userKey');
+	const candidateAccessKey = c.req.query('candidate_access_key');
 
 	// Interviewer auth
 	let userId: string | undefined;
@@ -57,7 +81,7 @@ interviews.get('/public/:id/token', async (c) => {
 	}
 
 	try {
-		const participant = await verifyInterviewAccess(id, email || '', userKey, userId);
+		const participant = await verifyInterviewAccess(id, email || '', candidateAccessKey, userId);
 
 		if (!participant) {
 			return c.json({ error: 'Unauthorized: Invalid credentials or access key' }, 403);

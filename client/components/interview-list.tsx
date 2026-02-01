@@ -31,6 +31,7 @@ interface Interview {
 	scheduled_start: string;
 	interviewer_ids: string[];
 	status: string;
+	candidate_access_key: string;
 }
 
 export default function InterviewList() {

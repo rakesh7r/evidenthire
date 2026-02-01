@@ -95,7 +95,12 @@ export const verifyInterviewAccess = async (
 	if (!interview) return null;
 
 	// 1. Check if Candidate
-	if (accessKey && interview.candidate_access_key === accessKey && interview.candidate_email === email) {
+	if (
+		accessKey &&
+		interview.candidate_access_key === accessKey &&
+		interview.candidate_email.toLowerCase() === email.toLowerCase() &&
+		interviewId === interviewId
+	) {
 		return {
 			role: 'candidate',
 			name: interview.candidate_name,
@@ -481,6 +486,13 @@ export const resendInvitation = async (userId: string, interviewId: string) => {
 		throw new Error('Interview not found or unauthorized');
 	}
 
+	// Ensure access key exists
+	let accessKey = interview.candidate_access_key;
+	if (!accessKey) {
+		accessKey = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+		await sql`UPDATE interview SET candidate_access_key = ${accessKey} WHERE id = ${interview.id}`;
+	}
+
 	try {
 		await resendCandidateReminder({
 			interviewId: interview.id,
@@ -488,7 +500,7 @@ export const resendInvitation = async (userId: string, interviewId: string) => {
 			candidateName: interview.candidate_name,
 			positionTitle: interview.position_title,
 			scheduledStart: new Date(interview.scheduled_start),
-			candidateAccessKey: interview.candidate_access_key,
+			candidateAccessKey: accessKey,
 		});
 		return { success: true };
 	} catch (err: any) {

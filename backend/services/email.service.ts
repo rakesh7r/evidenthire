@@ -74,7 +74,9 @@ export const notifyInterviewScheduled = async (data: {
 	const baseLink = `${APP_URL}/interview/${data.interviewId}`;
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
-		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&userKey=${data.candidateAccessKey}`
+		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
+				data.candidateAccessKey
+		  }&interviewId=${data.interviewId}`
 		: baseLink;
 
 	// Generate ICS for Candidate
@@ -183,7 +185,7 @@ export const notifyInterviewScheduled = async (data: {
                     <p style="margin: 5px 0 0 0;"><strong>Time:</strong> ${timeStr}</p>
                 </div>
                 <div style="margin: 20px 0;">
-                    <a href="${baseLink}" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
+                    <a href="${baseLink}?isInterviewer=true" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
                     <a href="${APP_URL}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
                 </div>
                 <p>Please review the candidate's profile and the interview guidelines in the dashboard.</p>
@@ -241,7 +243,9 @@ export const notifyInterviewUpdated = async (data: {
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	const baseLink = `${APP_URL}/interview/${data.interviewId}`;
 	const candidateJoinLink = data.candidateAccessKey
-		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&userKey=${data.candidateAccessKey}`
+		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
+				data.candidateAccessKey
+		  }&interviewId=${data.interviewId}`
 		: baseLink;
 
 	// Generate ICS for Candidate
@@ -348,7 +352,7 @@ export const notifyInterviewUpdated = async (data: {
                     <p style="margin: 5px 0 0 0;"><strong>New Time:</strong> ${timeStr}</p>
                 </div>
                 <div style="margin: 20px 0;">
-                    <a href="${baseLink}" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
+                    <a href="${baseLink}?isInterviewer=true" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
                 </div>
             </div>
             `,
@@ -376,7 +380,9 @@ export const resendCandidateReminder = async (data: {
 	const baseLink = `${APP_URL}/interview/${data.interviewId}`;
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
-		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&userKey=${data.candidateAccessKey}`
+		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
+				data.candidateAccessKey
+		  }&interviewId=${data.interviewId}`
 		: baseLink;
 
 	return await sendEmail(

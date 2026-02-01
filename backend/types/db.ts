@@ -164,3 +164,20 @@ export interface DataDeletionEvent {
 	reason?: string | null;
 	created_at: string; // ISO Date string
 }
+
+export interface PositionStage {
+	id: string; // UUID
+	position_id: string; // UUID
+	name: string;
+	order_index: number;
+	created_at: string; // ISO Date string
+}
+
+export interface Application {
+	id: string; // UUID
+	position_id: string; // UUID
+	candidate_id: string; // UUID
+	stage_id?: string | null; // UUID
+	created_at: string; // ISO Date string
+	updated_at: string; // ISO Date string
+}
