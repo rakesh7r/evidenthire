@@ -6,6 +6,7 @@ import {
 	SegmentedFileOutput,
 	SegmentedFileProtocol,
 	S3Upload,
+	AudioCodec,
 } from 'livekit-server-sdk';
 import { getInterviewMetadataForRecording } from './interview.service';
 
@@ -110,7 +111,7 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 		protocol: SegmentedFileProtocol.HLS_PROTOCOL,
 		filenamePrefix: pathPrefix,
 		playlistName: 'playlist.m3u8',
-		segmentDuration: 30,
+		segmentDuration: 30, // 30 seconds
 		output: {
 			case: 's3',
 			value: s3Config,
@@ -118,10 +119,16 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 	};
 
 	try {
-		// startTrackEgress(roomName, output, trackId)
-		// We need to cast output or construct it according to SDK expected type if strict
-		const egress = await egressClient.startTrackEgress(roomName, output, trackId);
-		console.log(`Started direct S3 track egress: ${egress.egressId} for track ${trackId}`);
+		// Use Track Composite Egress to enable transcoding and segmentation
+		const egress = await egressClient.startTrackCompositeEgress(roomName, output, {
+			audioTrackId: trackId,
+			encodingOptions: {
+				audioCodec: AudioCodec.AAC, // AAC is standard for HLS, produces .ts or .m4s segments
+				audioBitrate: 128000,
+				audioFrequency: 48000,
+			} as any,
+		});
+		console.log(`Started segmented track egress: ${egress.egressId} for track ${trackId}`);
 		return egress;
 	} catch (error) {
 		console.error('Failed to start track egress:', error);
