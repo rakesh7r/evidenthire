@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Briefcase, User, AlertCircle } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import PipelineBoard from '@/components/pipeline-board';
 
 interface Skill {
 	name: string;
@@ -113,15 +112,14 @@ export default function PositionDetailsPage() {
 			</div>
 
 			<div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
-				{/* Main Content: Pipeline Board */}
+				{/* Main Content: Placeholder for future features */}
 				<div className='lg:col-span-2 space-y-6'>
 					<div className='flex items-center justify-between'>
-						<h2 className='text-xl font-semibold text-white'>Candidate Pipeline</h2>
+						<h2 className='text-xl font-semibold text-white'>Candidates</h2>
 					</div>
 
-					{/* Render the Pipeline Board Component */}
-					<div className='overflow-x-auto'>
-						<PipelineBoard positionId={positionId} />
+					<div className='rounded-xl border border-dashed border-slate-800 p-12 text-center'>
+						<p className='text-slate-500'>Candidate management coming soon.</p>
 					</div>
 				</div>
 

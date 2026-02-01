@@ -188,7 +188,7 @@ export default function InterviewList() {
 							<FileText className='h-10 w-10 text-slate-500' />
 						</div>
 						<h3 className='mt-2 text-sm font-medium text-white'>No interviews yet</h3>
-						<p className='mt-1 text-sm text-slate-400'>Get started by creating a new interview pipeline.</p>
+						<p className='mt-1 text-sm text-slate-400'>Get started by scheduling your first interview.</p>
 					</div>
 				) : (
 					<div className='space-y-4'>
