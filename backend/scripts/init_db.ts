@@ -29,9 +29,13 @@ export const createDatabaseTables = async () => {
 		await sql`CREATE TABLE IF NOT EXISTS user_account (
               id                uuid primary key,
               email             text unique not null,
-              name              text,
+              full_name         text,
               organization_id   uuid references organization(id),
               role              text check (role in ('recruiter','interviewer','admin')),
+              date_of_birth     date,
+              gender            text check (gender in ('male','female','non_binary','prefer_not_to_say')),
+              city              text,
+              country           text,
               created_at        timestamptz not null default now(),
               last_logged_in_at timestamptz
             )`;

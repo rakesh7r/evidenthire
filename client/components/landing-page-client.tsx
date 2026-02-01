@@ -99,10 +99,18 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 					<div className='absolute -bottom-8 left-20 w-72 h-72 bg-teal-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000'></div>
 
 					<div className='relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center'>
-						<div className='inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 mb-8 backdrop-blur-sm'>
-							<span className='flex h-2 w-2 rounded-full bg-orange-500 mr-2'></span>
-							<span className='text-sm font-medium text-orange-400'>Waitlist Now Open</span>
-						</div>
+						{!isWaitlist && (
+							<div className='inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 mb-8 backdrop-blur-sm'>
+								<span className='flex h-2 w-2 rounded-full bg-orange-500 mr-2'></span>
+								<span className='text-sm font-medium text-orange-400'>Now Available</span>
+							</div>
+						)}
+						{isWaitlist && (
+							<div className='inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 mb-8 backdrop-blur-sm'>
+								<span className='flex h-2 w-2 rounded-full bg-orange-500 mr-2'></span>
+								<span className='text-sm font-medium text-orange-400'>Waitlist Now Open</span>
+							</div>
+						)}
 
 						<h1 className='mx-auto max-w-4xl text-5xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl'>
 							Stop Guessing.{' '}
@@ -138,7 +146,7 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 								<Link
 									href='/login'
 									className='group flex items-center justify-center gap-2 rounded-full bg-orange-600 px-8 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/20 transition-all hover:scale-105 hover:bg-orange-500 hover:shadow-orange-500/40'>
-									Join Waitlist
+									Get Started
 									<ArrowRight className='h-5 w-5 transition-transform group-hover:translate-x-1' />
 								</Link>
 							)}
@@ -324,14 +332,14 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 							{isWaitlist ? (
 								<button
 									onClick={openModal}
-									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
+									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
 									Secure Your Spot Now – Join Waitlist
 								</button>
 							) : (
 								<Link
 									href={user ? '#' : '/login'}
-									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
-									{user ? 'Go to Dashboard' : 'Secure Your Spot Now – Join Waitlist'}
+									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
+									{user ? 'Go to Dashboard' : 'Get Started'}
 								</Link>
 							)}
 						</div>

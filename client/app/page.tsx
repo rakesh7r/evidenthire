@@ -1,5 +1,5 @@
+import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
-import Dashboard from './dashboard/page';
 import LandingPageClient from '@/components/landing-page-client';
 import { isWaitlistMode } from '@/utils/flags';
 
@@ -19,7 +19,7 @@ export default async function Home() {
 	}
 
 	if (user) {
-		return <Dashboard />;
+		redirect('/dashboard');
 	}
 
 	return (

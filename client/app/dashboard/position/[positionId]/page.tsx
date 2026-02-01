@@ -231,54 +231,94 @@ export default function PositionDetailsPage() {
 								<p className='text-slate-400'>No interviews found matching your search.</p>
 							</div>
 						) : (
-							filteredInterviews.map((interview) => (
+							// Group interviews by candidate
+							Object.entries(
+								filteredInterviews.reduce((acc, interview) => {
+									if (!acc[interview.candidateEmail]) {
+										acc[interview.candidateEmail] = {
+											name: interview.candidateName,
+											email: interview.candidateEmail,
+											rounds: [],
+										};
+									}
+									acc[interview.candidateEmail].rounds.push(interview);
+									return acc;
+								}, {} as Record<string, { name: string; email: string; rounds: Interview[] }>)
+							).map(([email, candidate]) => (
 								<div
-									key={interview.id}
-									className='group rounded-xl border border-slate-800 bg-slate-900/50 p-4 transition-all hover:border-slate-700 hover:bg-slate-800/80'>
-									<div className='flex items-start justify-between'>
-										<div className='flex items-center gap-4'>
-											<div className='flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-400 font-semibold border border-slate-700'>
-												{interview.candidateName.charAt(0)}
+									key={email}
+									className='rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden'>
+									{/* Candidate Header */}
+									<div className='bg-slate-800/50 p-4 border-b border-slate-800 flex items-center justify-between'>
+										<div className='flex items-center gap-3'>
+											<div className='flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-slate-300 font-semibold border border-slate-600'>
+												{candidate.name.charAt(0)}
 											</div>
 											<div>
-												<h3 className='font-medium text-white'>{interview.candidateName}</h3>
-												<p className='text-sm text-slate-400 flex items-center gap-1.5 mt-0.5'>
-													<Mail className='h-3.5 w-3.5' />
-													{interview.candidateEmail}
-												</p>
+												<h3 className='font-medium text-white'>{candidate.name}</h3>
+												<div className='flex items-center gap-1.5 text-xs text-slate-400'>
+													<Mail className='h-3 w-3' />
+													{candidate.email}
+												</div>
 											</div>
 										</div>
-										<div
-											className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
-												interview.status === 'completed'
-													? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-													: interview.status === 'scheduled'
-													? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-													: 'bg-red-500/10 text-red-400 border-red-500/20'
-											}`}>
-											{interview.status.charAt(0).toUpperCase() + interview.status.slice(1)}
+										<div className='text-xs font-medium text-slate-500 bg-slate-800 px-2 py-1 rounded border border-slate-700'>
+											{candidate.rounds.length} Round{candidate.rounds.length !== 1 ? 's' : ''}
 										</div>
 									</div>
 
-									<div className='mt-4 flex items-center justify-between border-t border-slate-800 pt-3'>
-										<div className='flex items-center gap-4 text-sm text-slate-400'>
-											<div className='flex items-center gap-1.5'>
-												<Calendar className='h-4 w-4' />
-												{new Date(interview.date).toLocaleDateString()}
+									{/* Rounds List */}
+									<div className='divide-y divide-slate-800/50'>
+										{candidate.rounds.map((round, index) => (
+											<div
+												key={round.id}
+												className='p-4 hover:bg-slate-800/30 transition-colors flex items-center justify-between group'>
+												<div className='flex items-center gap-4'>
+													<div className='flex flex-col items-center min-w-12'>
+														<span className='text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5'>
+															Round
+														</span>
+														<span className='text-lg font-bold text-white'>{index + 1}</span>
+													</div>
+
+													<div className='h-8 w-px bg-slate-800 mx-2'></div>
+
+													<div className='space-y-1'>
+														<div className='flex items-center gap-3 text-sm text-slate-300'>
+															<div className='flex items-center gap-1.5'>
+																<Calendar className='h-3.5 w-3.5 text-slate-500' />
+																{new Date(round.date).toLocaleDateString()}
+															</div>
+															<div className='flex items-center gap-1.5'>
+																<Clock className='h-3.5 w-3.5 text-slate-500' />
+																{round.time}
+															</div>
+														</div>
+														<div className='flex items-center gap-2'>
+															<div
+																className={`px-2 py-0.5 rounded text-[10px] font-medium border uppercase tracking-wide ${
+																	round.status === 'completed'
+																		? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+																		: round.status === 'scheduled'
+																		? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+																		: 'bg-red-500/10 text-red-400 border-red-500/20'
+																}`}>
+																{round.status}
+															</div>
+															{round.score && (
+																<span className='text-xs font-medium text-emerald-400 flex items-center gap-1'>
+																	Score: {round.score}/10
+																</span>
+															)}
+														</div>
+													</div>
+												</div>
+
+												<button className='opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium text-orange-500 hover:text-orange-400 px-3 py-1.5 rounded hover:bg-orange-500/10'>
+													View Report
+												</button>
 											</div>
-											<div className='flex items-center gap-1.5'>
-												<Clock className='h-4 w-4' />
-												{interview.time}
-											</div>
-										</div>
-										{interview.score && (
-											<div className='font-semibold text-white flex items-center gap-1.5'>
-												Score: <span className='text-emerald-400'>{interview.score}/10</span>
-											</div>
-										)}
-										<button className='text-sm font-medium text-orange-500 hover:text-orange-400 transition-colors'>
-											View Details
-										</button>
+										))}
 									</div>
 								</div>
 							))

@@ -45,9 +45,13 @@ export interface Organization {
 export interface UserAccount {
 	id: string; // UUID
 	email: string;
-	name?: string | null;
+	full_name?: string | null;
 	organization_id?: string | null; // UUID
 	role: UserRole;
+	date_of_birth?: string | null; // Date string or ISO string
+	gender?: 'male' | 'female' | 'non_binary' | 'prefer_not_to_say' | null;
+	city?: string | null;
+	country?: string | null;
 	created_at: string; // ISO Date string
 	last_logged_in_at?: string | null; // ISO Date string
 }
