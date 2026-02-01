@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Briefcase, User, AlertCircle } from 'lucide-react';
 import { useParams } from 'next/navigation';
+import CandidateInterviews from '@/components/candidate-interviews';
 
 interface Skill {
 	name: string;
@@ -112,15 +113,13 @@ export default function PositionDetailsPage() {
 			</div>
 
 			<div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
-				{/* Main Content: Placeholder for future features */}
+				{/* Main Content: Interviews & Reports */}
 				<div className='lg:col-span-2 space-y-6'>
 					<div className='flex items-center justify-between'>
-						<h2 className='text-xl font-semibold text-white'>Candidates</h2>
+						<h2 className='text-xl font-semibold text-white'>Candidates & Interviews</h2>
 					</div>
 
-					<div className='rounded-xl border border-dashed border-slate-800 p-12 text-center'>
-						<p className='text-slate-500'>Candidate management coming soon.</p>
-					</div>
+					<CandidateInterviews positionId={positionId} />
 				</div>
 
 				{/* Sidebar: Details & Requirements */}
