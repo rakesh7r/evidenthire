@@ -17,6 +17,8 @@ export const metadata: Metadata = {
 	description: 'Objective performance reports generated instantly from interview transcriptions',
 };
 
+import { Toaster } from 'sonner';
+
 export default function RootLayout({
 	children,
 }: Readonly<{
@@ -24,7 +26,15 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang='en'>
-			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
+			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+				{children}
+				<Toaster
+					position='top-right'
+					theme='dark'
+					richColors
+					closeButton
+				/>
+			</body>
 		</html>
 	);
 }

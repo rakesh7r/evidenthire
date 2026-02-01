@@ -4,6 +4,7 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
+		"dev": "bun run --hot index.ts",
 		"start": "bun run index.ts"
 	},
 	"devDependencies": {
@@ -16,6 +17,8 @@
 	"dependencies": {
 		"@supabase/supabase-js": "^2.93.3",
 		"hono": "^4.11.7",
-		"postgres": "^3.4.8"
+		"livekit-server-sdk": "^2.15.0",
+		"postgres": "^3.4.8",
+		"resend": "^6.9.1"
 	}
 }

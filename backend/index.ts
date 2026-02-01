@@ -1,7 +1,11 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import organizationRoute from './routes/organization';
 import userRoute from './routes/user';
 import waitlistRoute from './routes/waitlist';
+import featuresRoute from './routes/features';
+import positionRoute from './routes/position';
+import interviewRoute from './routes/interview';
 
 import { logger } from 'hono/logger';
 
@@ -24,7 +28,11 @@ const v1 = new Hono();
 
 // Register routes to v1
 v1.route('/users', userRoute);
+v1.route('/organizations', organizationRoute);
 v1.route('/waitlist', waitlistRoute);
+v1.route('/features', featuresRoute);
+v1.route('/positions', positionRoute);
+v1.route('/interviews', interviewRoute);
 
 v1.get('/', (c) => {
 	return c.text('EvidentHire Backend');

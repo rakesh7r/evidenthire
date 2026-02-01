@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { createClient } from '@/utils/supabase/client';
 
 const api = axios.create({
 	baseURL: process.env.NEXT_PUBLIC_BACKEND_API_URL,
@@ -9,12 +10,15 @@ const api = axios.create({
 
 // Request interceptor to add auth token or other common headers if needed
 api.interceptors.request.use(
-	(config) => {
-		// Potentially add Authorization header here if available
-		// const token = ...
-		// if (token) {
-		//   config.headers.Authorization = `Bearer ${token}`;
-		// }
+	async (config) => {
+		const supabase = createClient();
+		const {
+			data: { session },
+		} = await supabase.auth.getSession();
+
+		if (session?.access_token) {
+			config.headers.Authorization = `Bearer ${session.access_token}`;
+		}
 		return config;
 	},
 	(error) => {

@@ -26,6 +26,8 @@ interface CreateInterviewModalProps {
 	};
 }
 
+import { toast } from 'sonner';
+
 export default function CreateInterviewModal({
 	onClose,
 	onSubmit,
@@ -92,7 +94,7 @@ export default function CreateInterviewModal({
 		e.preventDefault();
 		if (!canCreate) return;
 		if (!isTimeValid) {
-			alert('Please select a future date and time.');
+			toast.error('Please select a future date and time.');
 			return;
 		}
 		onSubmit({
