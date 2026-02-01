@@ -8,6 +8,7 @@ import {
 	deleteInterview,
 	getPublicInterviewById,
 } from '../services/interview.service';
+import { createAccessToken } from '../services/livekit.service';
 
 const interviews = new Hono<AuthEnv>();
 
@@ -23,6 +24,35 @@ interviews.get('/public/:id', async (c) => {
 		return c.json(result);
 	} catch (err: any) {
 		console.error(`Error fetching public interview ${id}:`, err);
+		return c.json({ error: err.message }, 500);
+	}
+});
+
+// Public Route: Get LiveKit token
+interviews.get('/public/:id/token', async (c) => {
+	const id = c.req.param('id');
+	const name = c.req.query('name');
+	const identity = c.req.query('identity');
+
+	if (!name || !identity) {
+		return c.json({ error: 'Name and identity are required' }, 400);
+	}
+
+	try {
+		const interview = await getPublicInterviewById(id);
+		if (!interview) {
+			return c.json({ error: 'Interview not found' }, 404);
+		}
+
+		// Use the interview ID as the room name
+		const token = await createAccessToken(id, identity, name, {
+			interviewId: id,
+			role: 'participant',
+		});
+
+		return c.json({ token });
+	} catch (err: any) {
+		console.error(`Error generating token for interview ${id}:`, err);
 		return c.json({ error: err.message }, 500);
 	}
 });

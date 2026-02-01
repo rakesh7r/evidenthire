@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+import InterviewRoom from './room';
+import { createLocalAudioTrack, createLocalVideoTrack, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
+import { useRef } from 'react';
 
 interface PublicInterview {
 	id: string;
@@ -39,6 +42,15 @@ export default function JoinInterviewPage() {
 	// Media states
 	const [isMicOn, setIsMicOn] = useState(true);
 	const [isVideoOn, setIsVideoOn] = useState(true);
+	const [token, setToken] = useState<string | null>(null);
+	const [isJoined, setIsJoined] = useState(false);
+
+	// Local tracks for preview
+	const [localVideoTrack, setLocalVideoTrack] = useState<LocalVideoTrack | null>(null);
+	const [localAudioTrack, setLocalAudioTrack] = useState<LocalAudioTrack | null>(null);
+	const videoRef = useRef<HTMLVideoElement>(null);
+
+	const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL;
 
 	useEffect(() => {
 		if (!id) return;
@@ -59,11 +71,120 @@ export default function JoinInterviewPage() {
 		fetchInterview();
 	}, [id]);
 
-	const handleJoin = () => {
-		// In a real app, this would route to the meeting room
-		toast.success('Joining the interview call...');
-		// router.push(`/interview/${id}/room?mic=${isMicOn}&cam=${isVideoOn}`);
+	// Initialize local tracks
+	useEffect(() => {
+		async function initTracks() {
+			try {
+				const vTrack = await createLocalVideoTrack({
+					resolution: { width: 1280, height: 720 },
+				});
+				setLocalVideoTrack(vTrack);
+
+				const aTrack = await createLocalAudioTrack();
+				setLocalAudioTrack(aTrack);
+			} catch (e) {
+				console.error('Failed to get local tracks:', e);
+				toast.error('Could not access camera or microphone. Please check permissions.');
+				setIsVideoOn(false);
+				setIsMicOn(false);
+			}
+		}
+
+		if (!isJoined && !isLoading && interview) {
+			initTracks();
+		}
+
+		return () => {
+			// Cleanup tracks on unmount or join
+			if (!isJoined) {
+				localVideoTrack?.stop();
+				localAudioTrack?.stop();
+			}
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isLoading, isJoined]);
+
+	// Attach video to element
+	useEffect(() => {
+		if (videoRef.current && localVideoTrack) {
+			localVideoTrack.attach(videoRef.current);
+		}
+		return () => {
+			if (localVideoTrack) {
+				localVideoTrack.detach();
+			}
+		};
+	}, [localVideoTrack]);
+
+	const toggleMic = () => {
+		if (localAudioTrack) {
+			const newState = !isMicOn;
+			if (newState) {
+				localAudioTrack.unmute();
+			} else {
+				localAudioTrack.mute();
+			}
+			setIsMicOn(newState);
+		}
 	};
+
+	const toggleVideo = async () => {
+		if (localVideoTrack) {
+			const newState = !isVideoOn;
+			if (newState) {
+				await localVideoTrack.unmute(); // or restart
+			} else {
+				await localVideoTrack.mute(); // or stop, but mute keeps the track object
+			}
+			setIsVideoOn(newState);
+		}
+	};
+
+	const handleJoin = async () => {
+		if (!interview || !id) return;
+		setIsLoading(true);
+
+		try {
+			// For simplicity, we'll use a random name for now or the candidate name if we can infer it logic-wise.
+			// Ideally, we'd prompt for a name if it's a guest, or use user details if logged in.
+			// Here we simply use "Participant" + suffix if not logged in, but for actual demo we use candidate name
+			const participantName = interview.candidate_name || 'Guest User';
+			const identity = `user-${Math.random().toString(36).substr(2, 9)}`;
+
+			const res = await api.get(`/interviews/public/${id}/token`, {
+				params: {
+					name: participantName,
+					identity: identity,
+				},
+			});
+
+			setToken(res.data.token);
+			setIsJoined(true);
+		} catch (err: any) {
+			console.error('Failed to get token:', err);
+			toast.error('Failed to join the room. Please try again.');
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleLeave = () => {
+		setIsJoined(false);
+		setToken(null);
+		toast.info('You have left the interview.');
+	};
+
+	if (isJoined && token && LIVEKIT_URL) {
+		return (
+			<InterviewRoom
+				token={token}
+				serverUrl={LIVEKIT_URL}
+				onLeave={handleLeave}
+				micEnabled={isMicOn}
+				camEnabled={isVideoOn}
+			/>
+		);
+	}
 
 	if (isLoading) {
 		return (
@@ -105,14 +226,14 @@ export default function JoinInterviewPage() {
 				<div className='lg:col-span-7 space-y-6'>
 					<div className='relative aspect-video rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex items-center justify-center group'>
 						{isVideoOn ? (
-							<div className='absolute inset-0 bg-slate-800 flex items-center justify-center'>
-								{/* This would be a real Video Preview element in a WebRTC app */}
-								<div className='text-center space-y-4'>
-									<div className='h-24 w-24 rounded-full bg-slate-700 mx-auto flex items-center justify-center'>
-										<User className='h-12 w-12 text-slate-500' />
-									</div>
-									<p className='text-slate-500 text-sm'>Camera Preview</p>
-								</div>
+							<div className='absolute inset-0 bg-slate-800 flex items-center justify-center overflow-hidden'>
+								<video
+									ref={videoRef}
+									className='h-full w-full object-cover -scale-x-100'
+									autoPlay
+									playsInline
+									muted
+								/>
 							</div>
 						) : (
 							<div className='absolute inset-0 bg-slate-950 flex items-center justify-center'>
@@ -124,7 +245,7 @@ export default function JoinInterviewPage() {
 						{/* Overlay Controls */}
 						<div className='absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 transition-transform group-hover:scale-105'>
 							<button
-								onClick={() => setIsMicOn(!isMicOn)}
+								onClick={toggleMic}
 								className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all ${
 									isMicOn
 										? 'bg-slate-800/80 hover:bg-slate-700 text-white'
@@ -133,7 +254,7 @@ export default function JoinInterviewPage() {
 								{isMicOn ? <Mic className='h-6 w-6' /> : <MicOff className='h-6 w-6' />}
 							</button>
 							<button
-								onClick={() => setIsVideoOn(!isVideoOn)}
+								onClick={toggleVideo}
 								className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all ${
 									isVideoOn
 										? 'bg-slate-800/80 hover:bg-slate-700 text-white'
