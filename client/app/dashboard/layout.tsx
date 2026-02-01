@@ -35,16 +35,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 	if (isLoading) {
 		return (
-			<div className='flex h-screen w-full items-center justify-center bg-slate-900'>
+			<div className='flex h-screen w-full items-center justify-center bg-white dark:bg-slate-900'>
 				<Loader2 className='h-8 w-8 animate-spin text-orange-500' />
 			</div>
 		);
 	}
 
 	return (
-		<div className='flex h-screen bg-slate-900 text-slate-50 overflow-hidden'>
+		<div className='flex h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 overflow-hidden transition-colors duration-300'>
 			<DashboardSidebar user={user} />
-			<main className='flex-1 overflow-y-auto'>{children}</main>
+			<main className='flex-1 overflow-y-auto bg-slate-50/50 dark:bg-transparent'>{children}</main>
 		</div>
 	);
 }

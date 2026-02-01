@@ -102,8 +102,8 @@ export default function ProfileSettings() {
 					<User className='h-5 w-5' />
 				</div>
 				<div>
-					<h2 className='text-lg font-semibold text-white'>Public Profile</h2>
-					<p className='text-xs text-slate-400'>Update your personal information.</p>
+					<h2 className='text-lg font-semibold text-slate-900 dark:text-white'>Public Profile</h2>
+					<p className='text-xs text-slate-500 dark:text-slate-400'>Update your personal information.</p>
 				</div>
 			</div>
 
@@ -112,39 +112,39 @@ export default function ProfileSettings() {
 				className='space-y-6 max-w-2xl'>
 				<div className='grid grid-cols-1 gap-6 sm:grid-cols-2'>
 					<div className='sm:col-span-2'>
-						<label className='block text-sm font-medium text-slate-300 mb-1'>Full Name</label>
+						<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>Full Name</label>
 						<div className='relative'>
 							<User className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
 							<input
 								type='text'
 								value={profile.full_name || ''}
 								onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-								className='w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
+								className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
 							/>
 						</div>
 					</div>
 
 					<div className='sm:col-span-2'>
-						<label className='block text-sm font-medium text-slate-300 mb-1'>Email Address</label>
+						<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>Email Address</label>
 						<div className='relative'>
 							<Mail className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
 							<input
 								type='email'
 								disabled
 								value={profile.email || ''}
-								className='w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 pl-10 pr-4 text-sm text-slate-400 cursor-not-allowed'
+								className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2.5 pl-10 pr-4 text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed'
 							/>
 						</div>
 						<p className='mt-1 text-xs text-slate-500'>Email cannot be changed.</p>
 					</div>
 
 					<div>
-						<label className='block text-sm font-medium text-slate-300 mb-1'>Gender</label>
+						<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>Gender</label>
 						<div className='relative'>
 							<select
 								value={profile.gender || ''}
 								onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
-								className='w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-3 pr-10 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none'>
+								className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 pl-3 pr-10 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none'>
 								<option value=''>Select Gender</option>
 								<option value='male'>Male</option>
 								<option value='female'>Female</option>
@@ -155,78 +155,88 @@ export default function ProfileSettings() {
 					</div>
 
 					<div>
-						<label className='block text-sm font-medium text-slate-300 mb-1'>Date of Birth</label>
+						<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>Date of Birth</label>
 						<div className='relative'>
 							<Calendar className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
 							<input
 								type='date'
 								value={profile.date_of_birth ? new Date(profile.date_of_birth).toISOString().split('T')[0] : ''}
 								onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })}
-								className='w-full rounded-lg border border-slate-700 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
+								className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
 							/>
 						</div>
 					</div>
 				</div>
 
 				{/* Organization Details */}
-				<div className='sm:col-span-2 pt-6 border-t border-slate-800 mt-2'>
+				<div className='sm:col-span-2 pt-6 border-t border-slate-200 dark:border-slate-800 mt-2'>
 					<div className='flex items-center gap-2 mb-4'>
-						<Building2 className='h-5 w-5 text-orange-500' />
-						<h3 className='text-base font-semibold text-white'>Organization Details</h3>
+						<Building2 className='h-5 w-5 text-orange-600 dark:text-orange-500' />
+						<h3 className='text-base font-semibold text-slate-900 dark:text-white'>Organization Details</h3>
 					</div>
 					<div className='grid grid-cols-1 gap-6 sm:grid-cols-2'>
 						<div>
-							<label className='block text-sm font-medium text-slate-300 mb-1'>Organization Name</label>
+							<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>
+								Organization Name
+							</label>
 							<input
 								type='text'
 								disabled={profile.role !== 'admin'}
 								value={profile.organization_name || ''}
 								onChange={(e) => setProfile({ ...profile, organization_name: e.target.value })}
-								className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-									profile.role !== 'admin' ? 'text-slate-400 cursor-not-allowed' : 'text-white'
+								className={`w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
+									profile.role !== 'admin'
+										? 'text-slate-500 dark:text-slate-400 cursor-not-allowed'
+										: 'text-slate-900 dark:text-white'
 								}`}
 							/>
 						</div>
 						<div>
-							<label className='block text-sm font-medium text-slate-300 mb-1'>Domain</label>
+							<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>Domain</label>
 							<input
 								type='text'
 								disabled={profile.role !== 'admin'}
 								value={profile.organization_domain || ''}
 								onChange={(e) => setProfile({ ...profile, organization_domain: e.target.value })}
-								className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-									profile.role !== 'admin' ? 'text-slate-400 cursor-not-allowed' : 'text-white'
+								className={`w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
+									profile.role !== 'admin'
+										? 'text-slate-500 dark:text-slate-400 cursor-not-allowed'
+										: 'text-slate-900 dark:text-white'
 								}`}
 							/>
 						</div>
 						<div>
-							<label className='block text-sm font-medium text-slate-300 mb-1'>City</label>
+							<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>City</label>
 							<input
 								type='text'
 								disabled={profile.role !== 'admin'}
 								value={profile.organization_city || ''}
 								onChange={(e) => setProfile({ ...profile, organization_city: e.target.value })}
-								className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-									profile.role !== 'admin' ? 'text-slate-400 cursor-not-allowed' : 'text-white'
+								className={`w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
+									profile.role !== 'admin'
+										? 'text-slate-500 dark:text-slate-400 cursor-not-allowed'
+										: 'text-slate-900 dark:text-white'
 								}`}
 							/>
 						</div>
 						<div>
-							<label className='block text-sm font-medium text-slate-300 mb-1'>Country</label>
+							<label className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>Country</label>
 							<input
 								type='text'
 								disabled={profile.role !== 'admin'}
 								value={profile.organization_country || ''}
 								onChange={(e) => setProfile({ ...profile, organization_country: e.target.value })}
-								className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-									profile.role !== 'admin' ? 'text-slate-400 cursor-not-allowed' : 'text-white'
+								className={`w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 py-2.5 px-4 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 ${
+									profile.role !== 'admin'
+										? 'text-slate-500 dark:text-slate-400 cursor-not-allowed'
+										: 'text-slate-900 dark:text-white'
 								}`}
 							/>
 						</div>
 					</div>
 				</div>
 
-				<div className='pt-4 border-t border-slate-800'>
+				<div className='pt-4 border-t border-slate-200 dark:border-slate-800'>
 					<button
 						type='submit'
 						disabled={isSaving}
