@@ -15,6 +15,7 @@ const sqsClient = new SQSClient({
 });
 
 webhook.post('/', async (c) => {
+	console.log('🔥 webhook HIT');
 	const body = await c.req.text();
 	const authHeader = c.req.header('Authorization');
 
