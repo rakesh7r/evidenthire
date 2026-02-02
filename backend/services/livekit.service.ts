@@ -90,33 +90,29 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 	const date = new Date(metadata.scheduled_start).toISOString().split('T')[0];
 	const safePositionName = metadata.position_title.replace(/\s+/g, '-').toLowerCase();
 
-	// Path: positionname/interviewid/date/candidateemail/
+	// Path: positionname/interviewid/date/candidateemail/chunks
 	// The SegmentedFileOutput will append the suffix (e.g. _001.ts or .m3u8)
 	const pathPrefix = `${safePositionName}/${metadata.id}/${date}/${metadata.candidate_email}/chunks`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
-	const s3Config: any = {
+	const s3 = new S3Upload({
 		accessKey: s3AccessKey,
-		secret: s3Secret, // Correct secret
+		secret: s3Secret,
 		region: s3Region,
 		bucket: s3Bucket,
-		forcePathStyle: false,
-	};
+	});
 
-	// Use SegmentedFileOutput for 30s chunks
-	// Note: TrackEgress with SegmentedFileOutput typically produces HLS (m3u8 + ts/mp4)
-	// We set segmentDuration to 30.
-	const output: any = {
+	const output = new SegmentedFileOutput({
 		protocol: SegmentedFileProtocol.HLS_PROTOCOL,
 		filenamePrefix: pathPrefix,
 		playlistName: 'playlist.m3u8',
 		segmentDuration: 30, // 30 seconds
 		output: {
 			case: 's3',
-			value: s3Config,
+			value: s3,
 		},
-	};
+	});
 
 	try {
 		// Use Track Composite Egress to enable transcoding and segmentation
