@@ -25,20 +25,20 @@ webhook.post('/', async (c) => {
 
 	try {
 		const event = await receiver.receive(body, authHeader);
-		console.log('LiveKit Webhook Event:', event.event);
+		console.log('LiveKit Webhook Event: received');
 
 		const roomName = event.room?.name;
 		if (!roomName) return c.json({ success: true });
-
+		console.log('roomName', roomName);
 		// Use room name as interview ID
 		const interviewId = roomName;
-		console.log('event', event);
 		switch (event.event) {
 			case 'room_started':
 				console.log(`Room started: ${roomName}.`);
 				break;
 
 			case 'track_published':
+				console.log('track_published', event);
 				if (event.track?.type === TrackType.AUDIO) {
 					const payload = {
 						event: 'track_published',
@@ -47,8 +47,8 @@ webhook.post('/', async (c) => {
 						interviewId,
 						timestamp: new Date().toISOString(),
 					};
-
 					console.log('payload', payload);
+					console.log('queue', process.env.AWS_SQS_QUEUE_URL!);
 
 					await sqsClient.send(
 						new SendMessageCommand({
