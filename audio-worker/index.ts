@@ -91,9 +91,6 @@ const startSQSConsumer = async () => {
 			});
 
 			const response = await sqsClient.send(command);
-			console.log('======================');
-			console.log('Received response from SQS:', response);
-			console.log('======================');
 
 			if (response.Messages && response.Messages.length > 0) {
 				console.log(`Received ${response.Messages.length} messages from SQS.`);

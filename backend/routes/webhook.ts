@@ -15,7 +15,6 @@ const sqsClient = new SQSClient({
 });
 
 webhook.post('/', async (c) => {
-	console.log('🔥 webhook HIT');
 	const body = await c.req.text();
 	const authHeader = c.req.header('Authorization');
 
@@ -25,11 +24,9 @@ webhook.post('/', async (c) => {
 
 	try {
 		const event = await receiver.receive(body, authHeader);
-		console.log('LiveKit Webhook Event: received');
 
 		const roomName = event.room?.name;
 		if (!roomName) return c.json({ success: true });
-		console.log('roomName', roomName);
 		// Use room name as interview ID
 		const interviewId = roomName;
 		switch (event.event) {
@@ -38,7 +35,6 @@ webhook.post('/', async (c) => {
 				break;
 
 			case 'track_published':
-				console.log('track_published', event);
 				if (event.track?.type === TrackType.AUDIO) {
 					const payload = {
 						event: 'track_published',
@@ -47,8 +43,6 @@ webhook.post('/', async (c) => {
 						interviewId,
 						timestamp: new Date().toISOString(),
 					};
-					console.log('payload', payload);
-					console.log('queue', process.env.AWS_SQS_QUEUE_URL!);
 
 					await sqsClient.send(
 						new SendMessageCommand({
@@ -56,7 +50,7 @@ webhook.post('/', async (c) => {
 							MessageBody: JSON.stringify(payload),
 						})
 					);
-
+					console.log('Track published event sent to SQS');
 					await startTrackAudioRecording(roomName, event.track.sid, interviewId);
 				}
 				break;
