@@ -6,7 +6,9 @@ import {
 	SegmentedFileOutput,
 	SegmentedFileProtocol,
 	S3Upload,
+	AudioCodec,
 } from 'livekit-server-sdk';
+import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -16,6 +18,45 @@ const LIVEKIT_URL = process.env.LIVEKIT_URL;
 if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
 	console.warn('LiveKit environment variables are missing. Video calls will not work.');
 }
+
+const s3Client = new S3Client({
+	region: process.env.AWS_REGION || 'us-east-1',
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+	},
+});
+
+const getNextSessionId = async (bucket: string, prefix: string): Promise<string> => {
+	try {
+		console.log(`Checking sessions in bucket: ${bucket} with prefix: ${prefix}`);
+		const command = new ListObjectsV2Command({
+			Bucket: bucket,
+			Prefix: prefix.endsWith('/') ? prefix : `${prefix}/`,
+			Delimiter: '/',
+		});
+		const response = await s3Client.send(command);
+		const commonPrefixes = response.CommonPrefixes || [];
+
+		let maxSession = 0;
+		for (const p of commonPrefixes) {
+			const parts = p.Prefix?.split('/') || [];
+			// parts might be ["prefix", "...", "session1", ""]
+			const folderName = parts[parts.length - 2];
+			if (folderName && folderName.startsWith('session')) {
+				const num = parseInt(folderName.replace('session', ''), 10);
+				if (!isNaN(num) && num > maxSession) {
+					maxSession = num;
+				}
+			}
+		}
+
+		return `session${maxSession + 1}`;
+	} catch (error) {
+		console.error('Error fetching next session ID:', error);
+		return 'session1'; // Default start
+	}
+};
 
 export const createAccessToken = async (
 	roomName: string,
@@ -86,42 +127,44 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 		return;
 	}
 
-	const date = new Date(metadata.scheduled_start).toISOString().split('T')[0];
-	const safePositionName = metadata.position_title.replace(/\s+/g, '-').toLowerCase();
+	const basePath = `${metadata.id}/sessions`;
 
-	// Path: positionname/interviewid/date/candidateemail/
-	// The SegmentedFileOutput will append the suffix (e.g. _001.ts or .m3u8)
-	const pathPrefix = `${safePositionName}/${metadata.id}/${date}/${metadata.candidate_email}/chunks`;
+	const sessionId = await getNextSessionId(s3Bucket, basePath);
+	console.log(`Checking sessions... detected next session: ${sessionId}`);
+
+	const pathPrefix = `${basePath}/${sessionId}`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
-	const s3Config: any = {
+	const s3 = new S3Upload({
 		accessKey: s3AccessKey,
-		secret: s3Secret, // Correct secret
+		secret: s3Secret,
 		region: s3Region,
 		bucket: s3Bucket,
-		forcePathStyle: false,
-	};
+	});
 
-	// Use SegmentedFileOutput for 30s chunks
-	// Note: TrackEgress with SegmentedFileOutput typically produces HLS (m3u8 + ts/mp4)
-	// We set segmentDuration to 30.
-	const output: any = {
+	const output = new SegmentedFileOutput({
 		protocol: SegmentedFileProtocol.HLS_PROTOCOL,
 		filenamePrefix: pathPrefix,
 		playlistName: 'playlist.m3u8',
-		segmentDuration: 30,
+		segmentDuration: 30, // 30 seconds
 		output: {
 			case: 's3',
-			value: s3Config,
+			value: s3,
 		},
-	};
+	});
 
 	try {
-		// startTrackEgress(roomName, output, trackId)
-		// We need to cast output or construct it according to SDK expected type if strict
-		const egress = await egressClient.startTrackEgress(roomName, output, trackId);
-		console.log(`Started direct S3 track egress: ${egress.egressId} for track ${trackId}`);
+		// Use Track Composite Egress to enable transcoding and segmentation
+		const egress = await egressClient.startTrackCompositeEgress(roomName, output, {
+			audioTrackId: trackId,
+			encodingOptions: {
+				audioCodec: AudioCodec.AAC, // AAC is standard for HLS, produces .ts or .m4s segments
+				audioBitrate: 128000,
+				audioFrequency: 48000,
+			} as any,
+		});
+		console.log(`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId}`);
 		return egress;
 	} catch (error) {
 		console.error('Failed to start track egress:', error);

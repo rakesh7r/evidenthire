@@ -1,9 +1,18 @@
 import { Hono } from 'hono';
-import { WebhookReceiver, TrackType } from 'livekit-server-sdk';
+import { TrackType, WebhookReceiver } from 'livekit-server-sdk';
 import { startRoomAudioRecording, startTrackAudioRecording } from '../services/livekit.service';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const webhook = new Hono();
 const receiver = new WebhookReceiver(process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
+
+const sqsClient = new SQSClient({
+	region: process.env.AWS_REGION || 'ap-south-1',
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+	},
+});
 
 webhook.post('/', async (c) => {
 	const body = await c.req.text();
@@ -15,14 +24,11 @@ webhook.post('/', async (c) => {
 
 	try {
 		const event = await receiver.receive(body, authHeader);
-		console.log('LiveKit Webhook Event:', event.event);
 
 		const roomName = event.room?.name;
 		if (!roomName) return c.json({ success: true });
-
 		// Use room name as interview ID
 		const interviewId = roomName;
-
 		switch (event.event) {
 			case 'room_started':
 				console.log(`Room started: ${roomName}.`);
@@ -30,13 +36,22 @@ webhook.post('/', async (c) => {
 
 			case 'track_published':
 				if (event.track?.type === TrackType.AUDIO) {
-					console.log(`Audio track published: ${event.track.sid} in room ${roomName}. Starting direct S3 egress...`);
-					// No websocket needed. We just trigger the egress with S3 config.
-					try {
-						await startTrackAudioRecording(roomName, event.track.sid, interviewId);
-					} catch (e) {
-						console.error('Failed to start track egress:', e);
-					}
+					const payload = {
+						event: 'track_published',
+						roomName,
+						trackSid: event.track.sid,
+						interviewId,
+						timestamp: new Date().toISOString(),
+					};
+
+					await sqsClient.send(
+						new SendMessageCommand({
+							QueueUrl: process.env.AWS_SQS_QUEUE_URL!,
+							MessageBody: JSON.stringify(payload),
+						})
+					);
+					console.log('Track published event sent to SQS');
+					await startTrackAudioRecording(roomName, event.track.sid, interviewId);
 				}
 				break;
 		}
