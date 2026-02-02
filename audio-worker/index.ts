@@ -3,6 +3,10 @@ import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import OpenAI from 'openai';
 import { Readable } from 'stream';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import ffmpeg from 'fluent-ffmpeg';
 
 const sqsClient = new SQSClient({
 	region: process.env.AWS_REGION || 'ap-south-1',
@@ -164,11 +168,27 @@ async function processAudioChunk(bucket: string, key: string) {
 		// 3. Transcribe
 		let text = '';
 		if (process.env.OPENAI_API_KEY) {
-			// OpenAI requires specific File-like object or filename.
-			// We can use the 'file' parameter with options
-			// Note: converting buffer to file object for OpenAI might require 'file-type' or mocking it
-			// Note: converting buffer to file object for OpenAI might require 'file-type' or mocking it
-			const file = new File([audioBuffer], filename || 'audio.mp3', { type: 'audio/mpeg' });
+			// Convert TS to MP3 using ffmpeg
+			// OpenAI doesn't support .ts files
+			const tempTsFile = path.join(os.tmpdir(), `${filename}-${Date.now()}.ts`);
+			const tempMp3File = path.join(os.tmpdir(), `${filename}-${Date.now()}.mp3`);
+
+			await fs.promises.writeFile(tempTsFile, audioBuffer);
+
+			console.log(`[${key}] Converting .ts to .mp3...`);
+			await new Promise<void>((resolve, reject) => {
+				ffmpeg(tempTsFile)
+					.toFormat('mp3')
+					.on('error', (err) => reject(err))
+					.on('end', () => resolve())
+					.save(tempMp3File);
+			});
+
+			console.log(`[${key}] Conversion complete. Sending to OpenAI...`);
+
+			// Read the converted file
+			const mp3Buffer = await fs.promises.readFile(tempMp3File);
+			const file = new File([mp3Buffer], 'audio.mp3', { type: 'audio/mpeg' });
 
 			console.log(`[${key}] Sending to OpenAI Whisper model: ${file.name} (${file.size} bytes)`);
 			const transcription = await openai.audio.transcriptions.create({
@@ -176,6 +196,10 @@ async function processAudioChunk(bucket: string, key: string) {
 				model: 'whisper-1',
 			});
 			text = transcription.text;
+
+			// Cleanup temp files
+			await fs.promises.unlink(tempTsFile).catch(() => {});
+			await fs.promises.unlink(tempMp3File).catch(() => {});
 		} else {
 			text = `[Mock Transcription for ${filename}]`;
 		}
