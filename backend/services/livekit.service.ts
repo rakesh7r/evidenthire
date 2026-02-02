@@ -8,6 +8,7 @@ import {
 	S3Upload,
 	AudioCodec,
 } from 'livekit-server-sdk';
+import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -17,6 +18,45 @@ const LIVEKIT_URL = process.env.LIVEKIT_URL;
 if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
 	console.warn('LiveKit environment variables are missing. Video calls will not work.');
 }
+
+const s3Client = new S3Client({
+	region: process.env.AWS_REGION || 'us-east-1',
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+	},
+});
+
+const getNextSessionId = async (bucket: string, prefix: string): Promise<string> => {
+	try {
+		console.log(`Checking sessions in bucket: ${bucket} with prefix: ${prefix}`);
+		const command = new ListObjectsV2Command({
+			Bucket: bucket,
+			Prefix: prefix.endsWith('/') ? prefix : `${prefix}/`,
+			Delimiter: '/',
+		});
+		const response = await s3Client.send(command);
+		const commonPrefixes = response.CommonPrefixes || [];
+
+		let maxSession = 0;
+		for (const p of commonPrefixes) {
+			const parts = p.Prefix?.split('/') || [];
+			// parts might be ["prefix", "...", "session1", ""]
+			const folderName = parts[parts.length - 2];
+			if (folderName && folderName.startsWith('session')) {
+				const num = parseInt(folderName.replace('session', ''), 10);
+				if (!isNaN(num) && num > maxSession) {
+					maxSession = num;
+				}
+			}
+		}
+
+		return `session${maxSession + 1}`;
+	} catch (error) {
+		console.error('Error fetching next session ID:', error);
+		return 'session1'; // Default start
+	}
+};
 
 export const createAccessToken = async (
 	roomName: string,
@@ -90,9 +130,15 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 	const date = new Date(metadata.scheduled_start).toISOString().split('T')[0];
 	const safePositionName = metadata.position_title.replace(/\s+/g, '-').toLowerCase();
 
-	// Path: positionname/interviewid/date/candidateemail/chunks
-	// The SegmentedFileOutput will append the suffix (e.g. _001.ts or .m3u8)
-	const pathPrefix = `${safePositionName}/${metadata.candidate_email}/${metadata.id}`;
+	// Base path: positionname/candidateemail/interviewid
+	const basePath = `${safePositionName}/${metadata.candidate_email}/${metadata.id}`;
+
+	// Determine session ID
+	const sessionId = await getNextSessionId(s3Bucket, basePath);
+	console.log(`Checking sessions... detected next session: ${sessionId}`);
+
+	// Final chunks path: positionname/candidateemail/interviewid/sessionX
+	const pathPrefix = `${basePath}/${sessionId}`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
@@ -124,7 +170,7 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 				audioFrequency: 48000,
 			} as any,
 		});
-		console.log(`Started segmented track egress: ${egress.egressId} for track ${trackId}`);
+		console.log(`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId}`);
 		return egress;
 	} catch (error) {
 		console.error('Failed to start track egress:', error);
