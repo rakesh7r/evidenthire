@@ -92,7 +92,7 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 
 	// Path: positionname/interviewid/date/candidateemail/chunks
 	// The SegmentedFileOutput will append the suffix (e.g. _001.ts or .m3u8)
-	const pathPrefix = `${safePositionName}/${metadata.id}/${date}/${metadata.candidate_email}/chunks`;
+	const pathPrefix = `${safePositionName}/${metadata.candidate_email}/${metadata.id}`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
