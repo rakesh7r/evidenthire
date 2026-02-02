@@ -145,11 +145,19 @@ async function processAudioChunk(bucket: string, key: string) {
 	const parts = key.split('/');
 	const filename = parts.pop();
 	const chunksPrefix = parts.join('/'); // .../chunks
-	const playlistKey = `${chunksPrefix}/playlist.m3u8`;
-
 	console.log(`[${key}] Starting processing...`);
 
 	try {
+		// Extract email from filename (format: email_0000.ts)
+		if (!filename) return;
+		const lastUnderscore = filename.lastIndexOf('_');
+		if (lastUnderscore === -1) {
+			console.log(`[${key}] Invalid filename format (no underscore). Skipping.`);
+			return;
+		}
+		const email = filename.substring(0, lastUnderscore);
+		const playlistKey = `${chunksPrefix}/playlist_${email}.m3u8`;
+
 		// 1. Fetch Playlist to find timestamp
 		console.log(`[${key}] Fetching playlist: ${playlistKey}`);
 		const playlistRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: playlistKey }));
@@ -204,7 +212,7 @@ async function processAudioChunk(bucket: string, key: string) {
 			text = `[Mock Transcription for ${filename}]`;
 		}
 
-		console.log(`Transcribed [${timestamp}]: ${text}`);
+		console.log(`Transcribed [${timestamp}] [${email}]: ${text}`);
 
 		// 4. Append to Transcript File
 		// Path matches: interviewId/sessions/sessionX/file.ts  OR  interviewId/sessions/sessionX_file.ts
@@ -251,7 +259,7 @@ async function processAudioChunk(bucket: string, key: string) {
 			// File doesn't exist yet
 		}
 
-		const newEntry = `[${timestamp}] ${text}\n`;
+		const newEntry = `[${timestamp}] [${email}] ${text}\n`;
 		const updatedTranscript = currentTranscript + newEntry;
 
 		await s3Client.send(

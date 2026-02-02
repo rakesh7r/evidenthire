@@ -106,7 +106,12 @@ export const startRoomAudioRecording = async (roomName: string, interviewId: str
 	}
 };
 
-export const startTrackAudioRecording = async (roomName: string, trackId: string, interviewId: string) => {
+export const startTrackAudioRecording = async (
+	roomName: string,
+	trackId: string,
+	interviewId: string,
+	participantIdentity?: string
+) => {
 	if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
 		throw new Error('LiveKit credentials are not configured');
 	}
@@ -127,12 +132,26 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 		return;
 	}
 
-	const basePath = `${metadata.id}/sessions`;
+	// Always use session1 to group all tracks/restarts in the same folder
+	const sessionId = 'session1';
+	const basePath = `${metadata.id}/sessions/${sessionId}`;
 
-	const sessionId = await getNextSessionId(s3Bucket, basePath);
-	console.log(`Checking sessions... detected next session: ${sessionId}`);
+	// Extract email from identity
+	let email = 'unknown';
+	if (participantIdentity) {
+		if (participantIdentity.startsWith('candidate-')) {
+			email = participantIdentity.replace('candidate-', '');
+		} else if (participantIdentity.startsWith('interviewer-')) {
+			email = participantIdentity.replace('interviewer-', '');
+		} else {
+			email = participantIdentity;
+		}
+	}
 
-	const pathPrefix = `${basePath}/${sessionId}`;
+	// Filename prefix: .../session1/<email>_
+	// LiveKit will append 0000.ts, 0001.ts, etc.
+	const filenamePrefix = `${basePath}/${email}_`;
+	const playlistName = `playlist_${email}.m3u8`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
@@ -145,8 +164,8 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 
 	const output = new SegmentedFileOutput({
 		protocol: SegmentedFileProtocol.HLS_PROTOCOL,
-		filenamePrefix: pathPrefix,
-		playlistName: 'playlist.m3u8',
+		filenamePrefix: filenamePrefix,
+		playlistName: playlistName,
 		segmentDuration: 30, // 30 seconds
 		output: {
 			case: 's3',
@@ -164,7 +183,9 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 				audioFrequency: 48000,
 			} as any,
 		});
-		console.log(`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId}`);
+		console.log(
+			`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId} for ${email}`
+		);
 		return egress;
 	} catch (error) {
 		console.error('Failed to start track egress:', error);

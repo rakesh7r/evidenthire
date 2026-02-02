@@ -51,7 +51,7 @@ webhook.post('/', async (c) => {
 						})
 					);
 					console.log('Track published event sent to SQS');
-					await startTrackAudioRecording(roomName, event.track.sid, interviewId);
+					await startTrackAudioRecording(roomName, event.track.sid, interviewId, event.participant?.identity);
 				}
 				break;
 		}
