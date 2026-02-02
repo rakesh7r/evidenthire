@@ -22,7 +22,7 @@ module.exports = {
             name: 'evident-transcript-worker',
             cwd: './transcript-worker',
             script: 'bun',
-            args: 'index.ts',
+            args: 'start',
             env: {
                 NODE_ENV: 'preview',
             },
