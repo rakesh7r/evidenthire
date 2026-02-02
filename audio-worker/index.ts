@@ -207,20 +207,38 @@ async function processAudioChunk(bucket: string, key: string) {
 		console.log(`Transcribed [${timestamp}]: ${text}`);
 
 		// 4. Append to Transcript File
-		// Path matches: interviewId/sessions/sessionX/file.ts
-		// We align with the new structure which includes 'sessions' folder
+		// Path matches: interviewId/sessions/sessionX/file.ts  OR  interviewId/sessions/sessionX_file.ts
 
 		const sessionsIndex = parts.indexOf('sessions');
-		// Fallback for safety or legacy paths
-		if (sessionsIndex === -1 || sessionsIndex + 1 >= parts.length) {
-			console.log(`[${key}] 'sessions' folder not found. Using fallback logic.`);
-			// Fallback: assume parts = [interviewId, sessionX, ...]
-			// But sticking to the new requirement:
+		if (sessionsIndex === -1) {
+			console.log(`[${key}] 'sessions' folder not found. Skipping transcript.`);
 			return;
 		}
 
 		const interviewFolder = parts.slice(0, sessionsIndex).join('/');
-		const sessionFolderName = parts[sessionsIndex + 1]; // "sessionX"
+		let sessionFolderName = '';
+
+		// Check if session is a folder (sessions/session1/...) or embedded in filename (sessions/session1_...)
+		// If sessionsIndex is the last part, the file is directly inside 'sessions' folder
+		if (sessionsIndex === parts.length - 1) {
+			if (!filename) return;
+			const match = filename.match(/^(session\d+)/);
+			if (match && match[1]) {
+				sessionFolderName = match[1];
+			} else {
+				console.log(`[${key}] Could not extract session ID from filename: ${filename}`);
+				return;
+			}
+		} else {
+			// Session is a subfolder
+			const folder = parts[sessionsIndex + 1];
+			if (folder) {
+				sessionFolderName = folder;
+			} else {
+				console.log(`[${key}] Could not extract session folder name.`);
+				return;
+			}
+		}
 
 		// Target: interviewId/transcripts/sessionX.txt
 		const transcriptKey = `${interviewFolder}/transcripts/${sessionFolderName}.txt`;
