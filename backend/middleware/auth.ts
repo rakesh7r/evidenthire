@@ -16,19 +16,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl!, supabaseKey!);
 
-export const verifyToken = async (token: string) => {
-	const {
-		data: { user },
-		error,
-	} = await supabase.auth.getUser(token);
-
-	if (error) throw error;
-	if (!user) throw new Error('User not found');
-
-	// For JWT compatibility return shape
-	return { sub: user.id, ...user };
-};
-
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
 	const authHeader = c.req.header('Authorization');
 	if (!authHeader) {
@@ -37,24 +24,16 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
 
 	const token = authHeader.replace('Bearer ', '');
 
-	try {
-		const user = await verifyToken(token);
-		// Cast back to supabase User type roughly if needed or construct it
-		// Since verifyToken calls getUser, let's just use the returned user object roughly
-		// Ideally we should return the exact user object from verifyToken
-		// But for minimal diff:
+	const {
+		data: { user },
+		error,
+	} = await supabase.auth.getUser(token);
 
-		const {
-			data: { user: supabaseUser },
-		} = await supabase.auth.getUser(token); // Redundant but safe refactor
-		if (supabaseUser) {
-			c.set('user', supabaseUser);
-		} else {
-			throw new Error('User not found');
-		}
-	} catch (e) {
-		console.error('Auth error:', e);
+	if (error || !user) {
+		console.error('Auth error:', error);
 		return c.json({ error: 'Unauthorized' }, 401);
 	}
+
+	c.set('user', user);
 	await next();
 });

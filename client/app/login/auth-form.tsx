@@ -19,8 +19,6 @@ export default function AuthForm() {
 				console.log('Signed In User:', session?.user);
 				router.push('/');
 				router.refresh();
-			} else if (event === 'PASSWORD_RECOVERY') {
-				router.push('/dashboard/settings/security');
 			}
 		});
 
@@ -35,11 +33,7 @@ export default function AuthForm() {
 			theme='light'
 			showLinks={true}
 			providers={[]}
-			redirectTo={
-				typeof window !== 'undefined'
-					? `${window.location.origin}/auth/callback?next=/dashboard/settings/security`
-					: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/dashboard/settings/security`
-			}
+			redirectTo={`${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`}
 		/>
 	);
 }
