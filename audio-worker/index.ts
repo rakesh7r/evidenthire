@@ -207,11 +207,23 @@ async function processAudioChunk(bucket: string, key: string) {
 		console.log(`Transcribed [${timestamp}]: ${text}`);
 
 		// 4. Append to Transcript File
-		// We'll store transcript in the PARENT folder (level up from chunks) or same folder?
-		// "generate a transcripts text file". putting it in the 'chunks' folder usually is messy.
-		// Let's put it in the candidate folder: .../email/transcript.txt
-		const parentFolder = parts.slice(0, -1).join('/'); // .../email
-		const transcriptKey = `${parentFolder}/transcript.txt`;
+		// Path matches: interviewId/sessions/sessionX/file.ts
+		// We align with the new structure which includes 'sessions' folder
+
+		const sessionsIndex = parts.indexOf('sessions');
+		// Fallback for safety or legacy paths
+		if (sessionsIndex === -1 || sessionsIndex + 1 >= parts.length) {
+			console.log(`[${key}] 'sessions' folder not found. Using fallback logic.`);
+			// Fallback: assume parts = [interviewId, sessionX, ...]
+			// But sticking to the new requirement:
+			return;
+		}
+
+		const interviewFolder = parts.slice(0, sessionsIndex).join('/');
+		const sessionFolderName = parts[sessionsIndex + 1]; // "sessionX"
+
+		// Target: interviewId/transcripts/sessionX.txt
+		const transcriptKey = `${interviewFolder}/transcripts/${sessionFolderName}.txt`;
 
 		let currentTranscript = '';
 		try {

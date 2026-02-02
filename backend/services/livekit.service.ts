@@ -127,17 +127,11 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 		return;
 	}
 
-	const date = new Date(metadata.scheduled_start).toISOString().split('T')[0];
-	const safePositionName = metadata.position_title.replace(/\s+/g, '-').toLowerCase();
+	const basePath = `${metadata.id}/sessions`;
 
-	// Base path: positionname/candidateemail/interviewid
-	const basePath = `${safePositionName}/${metadata.candidate_email}/${metadata.id}`;
-
-	// Determine session ID
 	const sessionId = await getNextSessionId(s3Bucket, basePath);
 	console.log(`Checking sessions... detected next session: ${sessionId}`);
 
-	// Final chunks path: positionname/candidateemail/interviewid/sessionX
 	const pathPrefix = `${basePath}/${sessionId}`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
