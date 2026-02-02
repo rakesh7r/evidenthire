@@ -58,6 +58,43 @@ const getNextSessionId = async (bucket: string, prefix: string): Promise<string>
 	}
 };
 
+// Cache to track active session per interview
+// This ensures all participants joining the same session use the same session ID
+// Session expires after SESSION_TTL_MS of inactivity (e.g., when interview ends and restarts)
+const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const activeSessionCache: Map<string, { sessionId: string; expiresAt: number }> = new Map();
+
+const getOrCreateSessionId = async (bucket: string, interviewId: string, sessionsBasePath: string): Promise<string> => {
+	const now = Date.now();
+	const cached = activeSessionCache.get(interviewId);
+
+	// If we have a valid cached session (not expired), use it
+	if (cached && cached.expiresAt > now) {
+		// Extend the TTL since there's activity
+		cached.expiresAt = now + SESSION_TTL_MS;
+		console.log(`Using cached session for interview ${interviewId}: ${cached.sessionId}`);
+		return cached.sessionId;
+	}
+
+	// No valid cache, fetch the next session ID from S3
+	const sessionId = await getNextSessionId(bucket, sessionsBasePath);
+
+	// Cache it with TTL
+	activeSessionCache.set(interviewId, {
+		sessionId,
+		expiresAt: now + SESSION_TTL_MS,
+	});
+
+	console.log(`Created new session for interview ${interviewId}: ${sessionId}`);
+	return sessionId;
+};
+
+// Function to invalidate session cache (call when interview ends)
+export const invalidateSessionCache = (interviewId: string) => {
+	activeSessionCache.delete(interviewId);
+	console.log(`Session cache invalidated for interview ${interviewId}`);
+};
+
 export const createAccessToken = async (
 	roomName: string,
 	participantIdentity: string,
@@ -132,9 +169,11 @@ export const startTrackAudioRecording = async (
 		return;
 	}
 
-	// Always use session1 to group all tracks/restarts in the same folder
-	const sessionId = 'session1';
-	const basePath = `${metadata.id}/sessions/${sessionId}`;
+	// Determine session ID - uses cache to ensure all participants in the same session use the same ID
+	const sessionsBasePath = `${metadata.id}/sessions`;
+	const sessionId = await getOrCreateSessionId(s3Bucket, interviewId, sessionsBasePath);
+
+	const basePath = `${sessionsBasePath}/${sessionId}`;
 
 	// Extract email from identity
 	let email = 'unknown';
@@ -148,7 +187,7 @@ export const startTrackAudioRecording = async (
 		}
 	}
 
-	// Filename prefix: .../session1/<email>
+	// Filename prefix: .../sessionX/<email>
 	// LiveKit will append _0000.ts, _0001.ts, etc.
 	const filenamePrefix = `${basePath}/${email}`;
 	const playlistName = `playlist_${email}.m3u8`;
