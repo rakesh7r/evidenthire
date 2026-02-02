@@ -111,7 +111,7 @@ const startSQSConsumer = async () => {
 
 									const bucket = record.s3.bucket.name;
 									const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
-									const size = record.s3.object.size; // We only care about audio chunks (e.g., .ts or .m4a)
+									// We only care about audio chunks (e.g., .ts or .m4a)
 									if (key.endsWith('.ts') || key.endsWith('.m4a') || key.endsWith('.mp3')) {
 										console.log(`Processing chunk: ${key}`);
 										await processAudioChunk(bucket, key);
@@ -145,11 +145,24 @@ async function processAudioChunk(bucket: string, key: string) {
 	const parts = key.split('/');
 	const filename = parts.pop();
 	const chunksPrefix = parts.join('/'); // .../chunks
-	const playlistKey = `${chunksPrefix}/playlist.m3u8`;
-
 	console.log(`[${key}] Starting processing...`);
 
 	try {
+		// Extract email from filename (format: email_0000.ts)
+		if (!filename) return;
+
+		// Regex to extract email from filename like "email_00001.ts"
+		// Matches everything up to the last underscore followed by digits
+		const emailMatch = filename.match(/^(.+)_(\d+)\.(ts|m4a|mp3)$/);
+
+		if (!emailMatch) {
+			console.log(`[${key}] Invalid filename format or could not extract email. Skipping.`);
+			return;
+		}
+
+		const email = emailMatch[1];
+		const playlistKey = `${chunksPrefix}/playlist_${email}.m3u8`;
+
 		// 1. Fetch Playlist to find timestamp
 		console.log(`[${key}] Fetching playlist: ${playlistKey}`);
 		const playlistRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: playlistKey }));
@@ -204,7 +217,7 @@ async function processAudioChunk(bucket: string, key: string) {
 			text = `[Mock Transcription for ${filename}]`;
 		}
 
-		console.log(`Transcribed [${timestamp}]: ${text}`);
+		console.log(`Transcribed [${timestamp}] [${email}]: ${text}`);
 
 		// 4. Append to Transcript File
 		// Path matches: interviewId/sessions/sessionX/file.ts  OR  interviewId/sessions/sessionX_file.ts
@@ -221,10 +234,9 @@ async function processAudioChunk(bucket: string, key: string) {
 		// Check if session is a folder (sessions/session1/...) or embedded in filename (sessions/session1_...)
 		// If sessionsIndex is the last part, the file is directly inside 'sessions' folder
 		if (sessionsIndex === parts.length - 1) {
-			if (!filename) return;
-			const match = filename.match(/^(session\d+)/);
-			if (match && match[1]) {
-				sessionFolderName = match[1];
+			const sessionMatch = filename.match(/^(session\d+)/);
+			if (sessionMatch && sessionMatch[1]) {
+				sessionFolderName = sessionMatch[1];
 			} else {
 				console.log(`[${key}] Could not extract session ID from filename: ${filename}`);
 				return;
@@ -251,7 +263,7 @@ async function processAudioChunk(bucket: string, key: string) {
 			// File doesn't exist yet
 		}
 
-		const newEntry = `[${timestamp}] ${text}\n`;
+		const newEntry = `[${timestamp}] [${email}] ${text}\n`;
 		const updatedTranscript = currentTranscript + newEntry;
 
 		await s3Client.send(

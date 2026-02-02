@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { TrackType, WebhookReceiver } from 'livekit-server-sdk';
-import { startRoomAudioRecording, startTrackAudioRecording } from '../services/livekit.service';
+import { startRoomAudioRecording, startTrackAudioRecording, invalidateSessionCache } from '../services/livekit.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const webhook = new Hono();
@@ -51,8 +51,13 @@ webhook.post('/', async (c) => {
 						})
 					);
 					console.log('Track published event sent to SQS');
-					await startTrackAudioRecording(roomName, event.track.sid, interviewId);
+					await startTrackAudioRecording(roomName, event.track.sid, interviewId, event.participant?.identity);
 				}
+				break;
+
+			case 'room_finished':
+				console.log(`Room finished: ${roomName}. Invalidating session cache.`);
+				invalidateSessionCache(interviewId);
 				break;
 		}
 

@@ -58,6 +58,43 @@ const getNextSessionId = async (bucket: string, prefix: string): Promise<string>
 	}
 };
 
+// Cache to track active session per interview
+// This ensures all participants joining the same session use the same session ID
+// Session expires after SESSION_TTL_MS of inactivity (e.g., when interview ends and restarts)
+const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const activeSessionCache: Map<string, { sessionId: string; expiresAt: number }> = new Map();
+
+const getOrCreateSessionId = async (bucket: string, interviewId: string, sessionsBasePath: string): Promise<string> => {
+	const now = Date.now();
+	const cached = activeSessionCache.get(interviewId);
+
+	// If we have a valid cached session (not expired), use it
+	if (cached && cached.expiresAt > now) {
+		// Extend the TTL since there's activity
+		cached.expiresAt = now + SESSION_TTL_MS;
+		console.log(`Using cached session for interview ${interviewId}: ${cached.sessionId}`);
+		return cached.sessionId;
+	}
+
+	// No valid cache, fetch the next session ID from S3
+	const sessionId = await getNextSessionId(bucket, sessionsBasePath);
+
+	// Cache it with TTL
+	activeSessionCache.set(interviewId, {
+		sessionId,
+		expiresAt: now + SESSION_TTL_MS,
+	});
+
+	console.log(`Created new session for interview ${interviewId}: ${sessionId}`);
+	return sessionId;
+};
+
+// Function to invalidate session cache (call when interview ends)
+export const invalidateSessionCache = (interviewId: string) => {
+	activeSessionCache.delete(interviewId);
+	console.log(`Session cache invalidated for interview ${interviewId}`);
+};
+
 export const createAccessToken = async (
 	roomName: string,
 	participantIdentity: string,
@@ -106,7 +143,12 @@ export const startRoomAudioRecording = async (roomName: string, interviewId: str
 	}
 };
 
-export const startTrackAudioRecording = async (roomName: string, trackId: string, interviewId: string) => {
+export const startTrackAudioRecording = async (
+	roomName: string,
+	trackId: string,
+	interviewId: string,
+	participantIdentity?: string
+) => {
 	if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
 		throw new Error('LiveKit credentials are not configured');
 	}
@@ -127,12 +169,28 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 		return;
 	}
 
-	const basePath = `${metadata.id}/sessions`;
+	// Determine session ID - uses cache to ensure all participants in the same session use the same ID
+	const sessionsBasePath = `${metadata.id}/sessions`;
+	const sessionId = await getOrCreateSessionId(s3Bucket, interviewId, sessionsBasePath);
 
-	const sessionId = await getNextSessionId(s3Bucket, basePath);
-	console.log(`Checking sessions... detected next session: ${sessionId}`);
+	const basePath = `${sessionsBasePath}/${sessionId}`;
 
-	const pathPrefix = `${basePath}/${sessionId}`;
+	// Extract email from identity
+	let email = 'unknown';
+	if (participantIdentity) {
+		if (participantIdentity.startsWith('candidate-')) {
+			email = participantIdentity.replace('candidate-', '');
+		} else if (participantIdentity.startsWith('interviewer-')) {
+			email = participantIdentity.replace('interviewer-', '');
+		} else {
+			email = participantIdentity;
+		}
+	}
+
+	// Filename prefix: .../sessionX/<email>
+	// LiveKit will append _0000.ts, _0001.ts, etc.
+	const filenamePrefix = `${basePath}/${email}`;
+	const playlistName = `playlist_${email}.m3u8`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
@@ -145,8 +203,8 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 
 	const output = new SegmentedFileOutput({
 		protocol: SegmentedFileProtocol.HLS_PROTOCOL,
-		filenamePrefix: pathPrefix,
-		playlistName: 'playlist.m3u8',
+		filenamePrefix: filenamePrefix,
+		playlistName: playlistName,
 		segmentDuration: 30, // 30 seconds
 		output: {
 			case: 's3',
@@ -164,7 +222,9 @@ export const startTrackAudioRecording = async (roomName: string, trackId: string
 				audioFrequency: 48000,
 			} as any,
 		});
-		console.log(`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId}`);
+		console.log(
+			`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId} for ${email}`
+		);
 		return egress;
 	} catch (error) {
 		console.error('Failed to start track egress:', error);

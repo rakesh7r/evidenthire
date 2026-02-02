@@ -117,10 +117,11 @@ export const verifyInterviewAccess = async (
 			// Fetch user name for identity
 			const user = await sql`SELECT full_name, email FROM user_account WHERE id = ${userId}`;
 			const userData = user[0];
+			if (!userData) return null;
 			return {
 				role: 'interviewer',
 				name: userData?.full_name || userData?.email || 'Interviewer',
-				identity: `interviewer-${userId}`,
+				identity: `interviewer-${userData.email}`,
 			};
 		}
 	}
