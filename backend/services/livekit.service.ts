@@ -99,10 +99,56 @@ const getOrCreateSessionId = async (bucket: string, interviewId: string, session
 	return sessionId;
 };
 
-// Function to get the last session ID for an interview (before cache is invalidated)
-export const getLastSessionId = (interviewId: string): string | null => {
+// Helper to get the latest session ID from S3
+const getLatestSessionIdFromS3 = async (bucket: string, prefix: string): Promise<string | null> => {
+	try {
+		const command = new ListObjectsV2Command({
+			Bucket: bucket,
+			Prefix: prefix.endsWith('/') ? prefix : `${prefix}/`,
+			Delimiter: '/',
+		});
+		const response = await s3Client.send(command);
+		const commonPrefixes = response.CommonPrefixes || [];
+
+		let maxSession = 0;
+		for (const p of commonPrefixes) {
+			const parts = p.Prefix?.split('/') || [];
+			const folderName = parts[parts.length - 2];
+			if (folderName && folderName.startsWith('session')) {
+				const num = parseInt(folderName.replace('session', ''), 10);
+				if (!isNaN(num) && num > maxSession) {
+					maxSession = num;
+				}
+			}
+		}
+
+		return maxSession > 0 ? `session${maxSession}` : null;
+	} catch (error) {
+		console.error('Error fetching latest session ID from S3:', error);
+		return null;
+	}
+};
+
+// Function to get the last session ID for an interview (checks cache first, then S3)
+export const getLastSessionId = async (interviewId: string): Promise<string | null> => {
+	// First check cache
 	const cached = activeSessionCache.get(interviewId);
-	return cached?.sessionId || null;
+	if (cached?.sessionId) {
+		console.log(`Found session ${cached.sessionId} in cache for interview ${interviewId}`);
+		return cached.sessionId;
+	}
+
+	// Cache miss - try to find from S3
+	const s3Bucket = process.env.AWS_S3_BUCKET;
+	if (!s3Bucket) {
+		console.warn('AWS_S3_BUCKET not set, cannot lookup session from S3');
+		return null;
+	}
+
+	const sessionsBasePath = `${interviewId}/sessions`;
+	const sessionId = await getLatestSessionIdFromS3(s3Bucket, sessionsBasePath);
+	console.log(`Found session ${sessionId} from S3 for interview ${interviewId}`);
+	return sessionId;
 };
 
 // Function to invalidate session cache (call when interview ends)

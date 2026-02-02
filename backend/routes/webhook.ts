@@ -64,7 +64,7 @@ webhook.post('/', async (c) => {
 				console.log(`Room finished: ${roomName}. Processing session end.`);
 
 				// Get the session ID that just ended
-				const sessionId = getLastSessionId(interviewId);
+				const sessionId = await getLastSessionId(interviewId);
 
 				if (sessionId && process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL) {
 					// Send session_ended event to transcript worker queue
