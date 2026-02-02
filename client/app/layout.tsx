@@ -17,14 +17,32 @@ export const metadata: Metadata = {
 	description: 'Objective performance reports generated instantly from interview transcriptions',
 };
 
+import { Toaster } from 'sonner';
+import { ThemeProvider } from '@/components/theme-provider';
+
 export default function RootLayout({
 	children,
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang='en'>
-			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
+		<html
+			lang='en'
+			suppressHydrationWarning>
+			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+				<ThemeProvider
+					attribute='class'
+					defaultTheme='dark'
+					enableSystem
+					disableTransitionOnChange>
+					{children}
+					<Toaster
+						position='top-right'
+						richColors
+						closeButton
+					/>
+				</ThemeProvider>
+			</body>
 		</html>
 	);
 }

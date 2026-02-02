@@ -1,0 +1,284 @@
+import 'dotenv/config';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import OpenAI from 'openai';
+import { Readable } from 'stream';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import ffmpeg from 'fluent-ffmpeg';
+
+const sqsClient = new SQSClient({
+	region: process.env.AWS_REGION || 'ap-south-1',
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+	},
+});
+
+const s3Client = new S3Client({
+	region: process.env.AWS_REGION || 'ap-south-1',
+	credentials: {
+		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+	},
+});
+
+const openai = new OpenAI({
+	apiKey: process.env.OPENAI_API_KEY,
+});
+
+const QUEUE_URL = process.env.AWS_SQS_QUEUE_URL;
+
+async function streamToString(stream: Readable): Promise<string> {
+	return await new Promise((resolve, reject) => {
+		const chunks: Buffer[] = [];
+		stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+		stream.on('error', (err) => reject(err));
+		stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+	});
+}
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+	return await new Promise((resolve, reject) => {
+		const chunks: Buffer[] = [];
+		stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+		stream.on('error', (err) => reject(err));
+		stream.on('end', () => resolve(Buffer.concat(chunks)));
+	});
+}
+
+function parseM3u8(content: string) {
+	const lines = content.split('\n');
+	let currentTime = 0;
+	const segments: { duration: number; uri: string; startTime: number }[] = [];
+
+	for (let i = 0; i < lines.length; i++) {
+		const rawLine = lines[i];
+		if (rawLine === undefined) continue;
+
+		const line = rawLine.trim();
+		if (line.startsWith('#EXTINF:')) {
+			const durationPart = line.split(':')[1];
+			if (!durationPart) continue;
+
+			const duration = parseFloat(durationPart.replace(',', ''));
+			// The next line should be the URI
+			const uri = lines[i + 1]?.trim();
+			if (uri && !uri.startsWith('#')) {
+				segments.push({ duration, uri, startTime: currentTime });
+				currentTime += duration;
+			}
+		}
+	}
+	return segments;
+}
+
+const startSQSConsumer = async () => {
+	if (!QUEUE_URL) {
+		console.log('AWS_SQS_QUEUE_URL not set. Exiting...');
+		process.exit(1);
+	}
+
+	if (!process.env.OPENAI_API_KEY) {
+		console.log('OPENAI_API_KEY not set. Transcription will act as mock.');
+	}
+
+	console.log(`Starting SQS Consumer for ${QUEUE_URL}...`);
+
+	while (true) {
+		try {
+			const command = new ReceiveMessageCommand({
+				QueueUrl: QUEUE_URL,
+				MaxNumberOfMessages: 5, // Process fewer to avoid rate limits
+				WaitTimeSeconds: 20,
+			});
+
+			const response = await sqsClient.send(command);
+
+			if (response.Messages && response.Messages.length > 0) {
+				console.log(`Received ${response.Messages.length} messages from SQS.`);
+				for (const message of response.Messages) {
+					if (message.Body) {
+						try {
+							const body = JSON.parse(message.Body);
+
+							if (body.event === 'track_published') {
+								console.log(`Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`);
+							} else if (body.Records) {
+								for (const record of body.Records) {
+									if (!record.s3 || !record.s3.bucket || !record.s3.object) continue;
+
+									const bucket = record.s3.bucket.name;
+									const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
+									// We only care about audio chunks (e.g., .ts or .m4a)
+									if (key.endsWith('.ts') || key.endsWith('.m4a') || key.endsWith('.mp3')) {
+										console.log(`Processing chunk: ${key}`);
+										await processAudioChunk(bucket, key);
+									}
+								}
+							}
+						} catch (e) {
+							console.error('Error processing message:', e);
+						}
+					}
+
+					if (message.ReceiptHandle) {
+						await sqsClient.send(
+							new DeleteMessageCommand({
+								QueueUrl: QUEUE_URL,
+								ReceiptHandle: message.ReceiptHandle,
+							})
+						);
+					}
+				}
+			}
+		} catch (err) {
+			console.error('SQS Poll Error:', err);
+			await new Promise((resolve) => setTimeout(resolve, 5000));
+		}
+	}
+};
+
+async function processAudioChunk(bucket: string, key: string) {
+	// Folder structure: position/id/date/email/chunks/file.ts
+	const parts = key.split('/');
+	const filename = parts.pop();
+	const chunksPrefix = parts.join('/'); // .../chunks
+	console.log(`[${key}] Starting processing...`);
+
+	try {
+		// Extract email from filename (format: email_0000.ts)
+		if (!filename) return;
+
+		// Regex to extract email from filename like "email_00001.ts"
+		// Matches everything up to the last underscore followed by digits
+		const emailMatch = filename.match(/^(.+)_(\d+)\.(ts|m4a|mp3)$/);
+
+		if (!emailMatch) {
+			console.log(`[${key}] Invalid filename format or could not extract email. Skipping.`);
+			return;
+		}
+
+		const email = emailMatch[1];
+		const playlistKey = `${chunksPrefix}/playlist_${email}.m3u8`;
+
+		// 1. Fetch Playlist to find timestamp
+		console.log(`[${key}] Fetching playlist: ${playlistKey}`);
+		const playlistRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: playlistKey }));
+		const playlistStr = await streamToString(playlistRes.Body as Readable);
+		const segments = parseM3u8(playlistStr);
+
+		const segment = segments.find((s) => s.uri === filename);
+		const startTime = segment ? segment.startTime : 0;
+		const timestamp = new Date(startTime * 1000).toISOString().substr(11, 8); // HH:MM:SS
+
+		// 2. Fetch Audio Chunk
+		console.log(`[${key}] Fetching audio chunk...`);
+		const audioRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+		const audioBuffer = await streamToBuffer(audioRes.Body as Readable);
+
+		// 3. Transcribe
+		let text = '';
+		if (process.env.OPENAI_API_KEY) {
+			// Convert TS to MP3 using ffmpeg
+			// OpenAI doesn't support .ts files
+			const tempTsFile = path.join(os.tmpdir(), `${filename}-${Date.now()}.ts`);
+			const tempMp3File = path.join(os.tmpdir(), `${filename}-${Date.now()}.mp3`);
+
+			await fs.promises.writeFile(tempTsFile, audioBuffer);
+
+			console.log(`[${key}] Converting .ts to .mp3...`);
+			await new Promise<void>((resolve, reject) => {
+				ffmpeg(tempTsFile)
+					.toFormat('mp3')
+					.on('error', (err) => reject(err))
+					.on('end', () => resolve())
+					.save(tempMp3File);
+			});
+
+			console.log(`[${key}] Conversion complete. Sending to OpenAI...`);
+
+			// Read the converted file
+			const mp3Buffer = await fs.promises.readFile(tempMp3File);
+			const file = new File([mp3Buffer], 'audio.mp3', { type: 'audio/mpeg' });
+
+			console.log(`[${key}] Sending to OpenAI Whisper model: ${file.name} (${file.size} bytes)`);
+			const transcription = await openai.audio.transcriptions.create({
+				file: file,
+				model: 'whisper-1',
+			});
+			text = transcription.text;
+
+			// Cleanup temp files
+			await fs.promises.unlink(tempTsFile).catch(() => {});
+			await fs.promises.unlink(tempMp3File).catch(() => {});
+		} else {
+			text = `[Mock Transcription for ${filename}]`;
+		}
+
+		console.log(`Transcribed [${timestamp}] [${email}]: ${text}`);
+
+		// 4. Append to Transcript File
+		// Path matches: interviewId/sessions/sessionX/file.ts  OR  interviewId/sessions/sessionX_file.ts
+
+		const sessionsIndex = parts.indexOf('sessions');
+		if (sessionsIndex === -1) {
+			console.log(`[${key}] 'sessions' folder not found. Skipping transcript.`);
+			return;
+		}
+
+		const interviewFolder = parts.slice(0, sessionsIndex).join('/');
+		let sessionFolderName = '';
+
+		// Check if session is a folder (sessions/session1/...) or embedded in filename (sessions/session1_...)
+		// If sessionsIndex is the last part, the file is directly inside 'sessions' folder
+		if (sessionsIndex === parts.length - 1) {
+			const sessionMatch = filename.match(/^(session\d+)/);
+			if (sessionMatch && sessionMatch[1]) {
+				sessionFolderName = sessionMatch[1];
+			} else {
+				console.log(`[${key}] Could not extract session ID from filename: ${filename}`);
+				return;
+			}
+		} else {
+			// Session is a subfolder
+			const folder = parts[sessionsIndex + 1];
+			if (folder) {
+				sessionFolderName = folder;
+			} else {
+				console.log(`[${key}] Could not extract session folder name.`);
+				return;
+			}
+		}
+
+		// Target: interviewId/transcripts/sessionX.txt
+		const transcriptKey = `${interviewFolder}/transcripts/${sessionFolderName}.txt`;
+
+		let currentTranscript = '';
+		try {
+			const existing = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: transcriptKey }));
+			currentTranscript = await streamToString(existing.Body as Readable);
+		} catch (e) {
+			// File doesn't exist yet
+		}
+
+		const newEntry = `[${timestamp}] [${email}] ${text}\n`;
+		const updatedTranscript = currentTranscript + newEntry;
+
+		await s3Client.send(
+			new PutObjectCommand({
+				Bucket: bucket,
+				Key: transcriptKey,
+				Body: updatedTranscript,
+				ContentType: 'text/plain',
+			})
+		);
+
+		console.log(`Updated transcript: ${transcriptKey}`);
+	} catch (err) {
+		console.error(`Failed to process chunk ${key}:`, err);
+	}
+}
+
+startSQSConsumer();
