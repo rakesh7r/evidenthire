@@ -1,6 +1,11 @@
 import { Hono } from 'hono';
 import { TrackType, WebhookReceiver } from 'livekit-server-sdk';
-import { startRoomAudioRecording, startTrackAudioRecording, invalidateSessionCache } from '../services/livekit.service';
+import {
+	startRoomAudioRecording,
+	startTrackAudioRecording,
+	invalidateSessionCache,
+	getLastSessionId,
+} from '../services/livekit.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const webhook = new Hono();
@@ -56,7 +61,30 @@ webhook.post('/', async (c) => {
 				break;
 
 			case 'room_finished':
-				console.log(`Room finished: ${roomName}. Invalidating session cache.`);
+				console.log(`Room finished: ${roomName}. Processing session end.`);
+
+				// Get the session ID that just ended
+				const sessionId = getLastSessionId(interviewId);
+
+				if (sessionId && process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL) {
+					// Send session_ended event to transcript worker queue
+					const payload = {
+						event: 'session_ended',
+						interviewId,
+						sessionId,
+						timestamp: new Date().toISOString(),
+					};
+
+					await sqsClient.send(
+						new SendMessageCommand({
+							QueueUrl: process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL,
+							MessageBody: JSON.stringify(payload),
+						})
+					);
+					console.log(`Session ended event sent to transcript queue for session ${sessionId}`);
+				}
+
+				// Invalidate session cache so next session gets a new ID
 				invalidateSessionCache(interviewId);
 				break;
 		}

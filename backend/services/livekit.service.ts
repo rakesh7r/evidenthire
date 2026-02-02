@@ -99,6 +99,12 @@ const getOrCreateSessionId = async (bucket: string, interviewId: string, session
 	return sessionId;
 };
 
+// Function to get the last session ID for an interview (before cache is invalidated)
+export const getLastSessionId = (interviewId: string): string | null => {
+	const cached = activeSessionCache.get(interviewId);
+	return cached?.sessionId || null;
+};
+
 // Function to invalidate session cache (call when interview ends)
 export const invalidateSessionCache = (interviewId: string) => {
 	const cached = activeSessionCache.get(interviewId);
