@@ -148,9 +148,9 @@ export const startTrackAudioRecording = async (
 		}
 	}
 
-	// Filename prefix: .../session1/<email>_
-	// LiveKit will append 0000.ts, 0001.ts, etc.
-	const filenamePrefix = `${basePath}/${email}_`;
+	// Filename prefix: .../session1/<email>
+	// LiveKit will append _0000.ts, _0001.ts, etc.
+	const filenamePrefix = `${basePath}/${email}`;
 	const playlistName = `playlist_${email}.m3u8`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
