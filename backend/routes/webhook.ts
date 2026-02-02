@@ -32,14 +32,13 @@ webhook.post('/', async (c) => {
 
 		// Use room name as interview ID
 		const interviewId = roomName;
-
+		console.log('event', event);
 		switch (event.event) {
 			case 'room_started':
 				console.log(`Room started: ${roomName}.`);
 				break;
 
 			case 'track_published':
-				console.log('track_published', event);
 				if (event.track?.type === TrackType.AUDIO) {
 					const payload = {
 						event: 'track_published',
