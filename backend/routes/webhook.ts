@@ -38,6 +38,7 @@ webhook.post('/', async (c) => {
 				break;
 
 			case 'track_published':
+				console.log('track_published', event);
 				if (event.track?.type === TrackType.AUDIO) {
 					const payload = {
 						event: 'track_published',
