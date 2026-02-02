@@ -8,7 +8,7 @@ import {
 	S3Upload,
 	AudioCodec,
 } from 'livekit-server-sdk';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -26,6 +26,9 @@ const s3Client = new S3Client({
 		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
 	},
 });
+
+// Cache to track session start times (used for anchoring track timestamps)
+const sessionStartTimeCache: Map<string, number> = new Map();
 
 const getNextSessionId = async (bucket: string, prefix: string): Promise<string> => {
 	try {
@@ -85,12 +88,25 @@ const getOrCreateSessionId = async (bucket: string, interviewId: string, session
 		expiresAt: now + SESSION_TTL_MS,
 	});
 
+	// Track session start time for this interview+session combo
+	const sessionKey = `${interviewId}:${sessionId}`;
+	if (!sessionStartTimeCache.has(sessionKey)) {
+		sessionStartTimeCache.set(sessionKey, now);
+		console.log(`Session start time recorded for ${sessionKey}: ${now}`);
+	}
+
 	console.log(`Created new session for interview ${interviewId}: ${sessionId}`);
 	return sessionId;
 };
 
 // Function to invalidate session cache (call when interview ends)
 export const invalidateSessionCache = (interviewId: string) => {
+	const cached = activeSessionCache.get(interviewId);
+	if (cached) {
+		// Also clear the session start time
+		const sessionKey = `${interviewId}:${cached.sessionId}`;
+		sessionStartTimeCache.delete(sessionKey);
+	}
 	activeSessionCache.delete(interviewId);
 	console.log(`Session cache invalidated for interview ${interviewId}`);
 };
@@ -175,16 +191,53 @@ export const startTrackAudioRecording = async (
 
 	const basePath = `${sessionsBasePath}/${sessionId}`;
 
-	// Extract email from identity
+	// Extract email and role from identity
 	let email = 'unknown';
+	let role = 'unknown';
 	if (participantIdentity) {
 		if (participantIdentity.startsWith('candidate-')) {
 			email = participantIdentity.replace('candidate-', '');
+			role = 'candidate';
 		} else if (participantIdentity.startsWith('interviewer-')) {
 			email = participantIdentity.replace('interviewer-', '');
+			role = 'interviewer';
 		} else {
 			email = participantIdentity;
 		}
+	}
+
+	// Get session start time and calculate track start offset
+	const sessionKey = `${interviewId}:${sessionId}`;
+	const sessionStartTime = sessionStartTimeCache.get(sessionKey) || Date.now();
+	const trackStartTime = Date.now();
+	const trackStartOffsetMs = trackStartTime - sessionStartTime;
+
+	// Write track metadata to S3 for timeline anchoring
+	const trackMetadata = {
+		trackId,
+		participantIdentity,
+		email,
+		role,
+		sessionId,
+		sessionStartTime,
+		trackStartTime,
+		trackStartOffsetMs,
+		createdAt: new Date().toISOString(),
+	};
+
+	const trackMetadataKey = `${basePath}/track_${email}.json`;
+	try {
+		await s3Client.send(
+			new PutObjectCommand({
+				Bucket: s3Bucket,
+				Key: trackMetadataKey,
+				Body: JSON.stringify(trackMetadata, null, 2),
+				ContentType: 'application/json',
+			})
+		);
+		console.log(`Track metadata written to S3: ${trackMetadataKey}`);
+	} catch (err) {
+		console.error(`Failed to write track metadata to S3:`, err);
 	}
 
 	// Filename prefix: .../sessionX/<email>
@@ -223,7 +276,7 @@ export const startTrackAudioRecording = async (
 			} as any,
 		});
 		console.log(
-			`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId} for ${email}`
+			`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId} for ${email} (offset: ${trackStartOffsetMs}ms)`
 		);
 		return egress;
 	} catch (error) {
