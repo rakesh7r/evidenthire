@@ -1,19 +1,53 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Bot, CheckCircle, FileText, LineChart, Mic, ShieldCheck, Users, X } from 'lucide-react';
 import Link from 'next/link';
+import api from '@/lib/api';
+import { createClient } from '@/utils/supabase/client';
 
 interface LandingPageProps {
 	user: any;
 	isWaitlist: boolean;
+	code?: string;
 }
 
-export default function LandingPageClient({ user, isWaitlist }: LandingPageProps) {
+export default function LandingPageClient({ user, isWaitlist, code }: LandingPageProps) {
+	const router = useRouter();
+	const supabase = createClient();
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [email, setEmail] = useState('');
 	const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 	const [message, setMessage] = useState('');
+
+	useEffect(() => {
+		if (code) {
+			const processAuth = async () => {
+				await supabase.auth.exchangeCodeForSession(code);
+			};
+			processAuth();
+		}
+	}, [code, supabase]);
+
+	useEffect(() => {
+		const {
+			data: { subscription },
+		} = supabase.auth.onAuthStateChange(async (event, session) => {
+			if (event === 'PASSWORD_RECOVERY') {
+				router.push('/reset-password');
+			} else if (event === 'SIGNED_IN' && code) {
+				// Default to reset password page for codes landing on root,
+				// as this covers the "Reset Password" flow where 'type' param is missing.
+				setTimeout(() => {
+					if (window.location.pathname !== '/reset-password') {
+						router.push('/reset-password');
+					}
+				}, 500);
+			}
+		});
+		return () => subscription.unsubscribe();
+	}, [supabase, router, code]);
 
 	const openModal = (e: React.MouseEvent) => {
 		if (isWaitlist) {
@@ -34,24 +68,19 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 		setStatus('loading');
 
 		try {
-			const response = await fetch('http://localhost:8000/waitlist', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ email }),
-			});
+			const response = await api.post('/waitlist', { email });
+			// axios throws on non-2xx by default, so we don't need manual !response.ok check usually,
+			// but we can access response.data directly.
 
-			const data = await response.json();
-
-			if (!response.ok) {
-				throw new Error(data.error || 'Something went wrong');
-			}
+			// data is already parsed json in axios
+			// const data = response.data;
 
 			setStatus('success');
 		} catch (error: any) {
 			setStatus('error');
-			setMessage(error.message);
+			// axios errors have a specific structure
+			const errorMsg = error.response?.data?.error || error.message || 'Something went wrong';
+			setMessage(errorMsg);
 		}
 	};
 
@@ -103,10 +132,18 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 					<div className='absolute -bottom-8 left-20 w-72 h-72 bg-teal-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000'></div>
 
 					<div className='relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center'>
-						<div className='inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 mb-8 backdrop-blur-sm'>
-							<span className='flex h-2 w-2 rounded-full bg-orange-500 mr-2'></span>
-							<span className='text-sm font-medium text-orange-400'>Waitlist Now Open</span>
-						</div>
+						{!isWaitlist && (
+							<div className='inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 mb-8 backdrop-blur-sm'>
+								<span className='flex h-2 w-2 rounded-full bg-orange-500 mr-2'></span>
+								<span className='text-sm font-medium text-orange-400'>Now Available</span>
+							</div>
+						)}
+						{isWaitlist && (
+							<div className='inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 mb-8 backdrop-blur-sm'>
+								<span className='flex h-2 w-2 rounded-full bg-orange-500 mr-2'></span>
+								<span className='text-sm font-medium text-orange-400'>Waitlist Now Open</span>
+							</div>
+						)}
 
 						<h1 className='mx-auto max-w-4xl text-5xl font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl'>
 							Stop Guessing.{' '}
@@ -142,7 +179,7 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 								<Link
 									href='/login'
 									className='group flex items-center justify-center gap-2 rounded-full bg-orange-600 px-8 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/20 transition-all hover:scale-105 hover:bg-orange-500 hover:shadow-orange-500/40'>
-									Join Waitlist
+									Get Started
 									<ArrowRight className='h-5 w-5 transition-transform group-hover:translate-x-1' />
 								</Link>
 							)}
@@ -328,14 +365,14 @@ export default function LandingPageClient({ user, isWaitlist }: LandingPageProps
 							{isWaitlist ? (
 								<button
 									onClick={openModal}
-									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
+									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
 									Secure Your Spot Now – Join Waitlist
 								</button>
 							) : (
 								<Link
 									href={user ? '#' : '/login'}
-									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
-									{user ? 'Go to Dashboard' : 'Secure Your Spot Now – Join Waitlist'}
+									className='rounded-full bg-orange-600 px-8 py-3.5 text-lg font-semibold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600'>
+									{user ? 'Go to Dashboard' : 'Get Started'}
 								</Link>
 							)}
 						</div>
