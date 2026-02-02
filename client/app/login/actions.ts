@@ -40,16 +40,21 @@ export async function signup(formData: FormData) {
 		redirect('/login?error=Email and password are required');
 	}
 
-	const { error } = await supabase.auth.signUp({
+	const { data, error } = await supabase.auth.signUp({
 		email,
 		password,
 		options: {
-			emailRedirectTo: `${origin}/auth/callback`,
+			emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,
 		},
 	});
 
 	if (error) {
 		redirect(`/login?error=${encodeURIComponent(error.message)}`);
+	}
+
+	if (data.session) {
+		revalidatePath('/', 'layout');
+		redirect('/onboarding');
 	}
 
 	redirect('/login?message=Check your email to verify your account.');
