@@ -113,7 +113,12 @@ export const addMemberByEmail = async (requesterId: string, email: string, role:
 
 		const supabase = createClient(process.env.SUPABASE_PROJECT_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-		const { data, error } = await supabase.auth.admin.inviteUserByEmail(email);
+		// Use APP_URL env var for redirect (set to production URL)
+		const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || '';
+
+		const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+			redirectTo: `${frontendUrl}auth/callback?next=/onboarding`,
+		});
 
 		if (error) {
 			console.error('Supabase Invite Error:', error);
