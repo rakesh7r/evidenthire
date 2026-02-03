@@ -15,15 +15,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 		const checkUser = async () => {
 			try {
 				const res = await api.get('/users/me');
-				setUser(res.data);
+				const userData = res.data;
+
+				// Check if user has completed onboarding (has organization)
+				if (!userData.organization_id) {
+					console.log('User has no organization, redirecting to /onboarding');
+					router.push('/onboarding');
+					return;
+				}
+
+				setUser(userData);
 				setIsLoading(false);
 			} catch (error: any) {
 				console.error('Dashboard checkUser error:', error);
 				if (error.response && error.response.status === 404) {
-					console.log('User not onboarded, redirecting to /onboarding');
+					console.log('User not found, redirecting to /onboarding');
 					router.push('/onboarding');
+				} else if (error.response && error.response.status === 401) {
+					console.log('User not authenticated, redirecting to /login');
+					router.push('/login');
 				} else {
-					// Handle other errors (e.g. 401, 500)
+					// Handle other errors (e.g. 500)
 					console.error('Unexpected error fetching user:', error.message);
 					setIsLoading(false);
 				}
