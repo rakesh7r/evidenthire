@@ -58,25 +58,20 @@ export const createDatabaseTables = async () => {
               organization_id  uuid references organization(id),
               title            text not null,
               requirements     jsonb,
+              rounds           jsonb DEFAULT '[]'::jsonb,
               status           text check (status in ('open','closed')),
               created_at       timestamptz not null default now()
             )`;
 		/*
       requirements schema
-      {
-        "skills": [
-          { "name": "system_design", "level": "senior" },
-          { "name": "postgres", "level": "intermediate" },
-          { "name": "distributed_systems", "level": "basic" }
-        ],
-        "interview_types": ["technical", "system_design"],
-        "evaluation_weights": {
-          "communication": 0.3,
-          "problem_solving": 0.4,
-          "depth": 0.3
-        }
-      }
-
+      ...
+    */
+		/*
+      rounds schema
+      [
+        { "title": "Phone Screen", "type": "cultural_fit", "duration_minutes": 30 },
+        { "title": "System Design", "type": "system_design", "duration_minutes": 60 }
+      ]
     */
 		console.log('Position table created successfully');
 		// =========================
@@ -95,6 +90,9 @@ export const createDatabaseTables = async () => {
                                   evidence_state in ('complete','partial','deleted')
                                 ) default 'complete',
               livekit_room_id   text,
+              -- Round Information
+              round_title       text,
+              round_type        text,
               -- New fields for lifecycle management
               first_join_at     timestamptz,
               last_activity_at  timestamptz,

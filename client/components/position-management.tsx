@@ -7,11 +7,9 @@ import AddPositionModal, { PositionFormData, RequirementsSchema } from './add-po
 import api from '@/lib/api';
 import { toast } from 'sonner';
 
-interface Position {
-	id: string;
-	title: string;
-	requirements: RequirementsSchema;
-	status: 'open' | 'closed';
+import { Position as DbPosition } from '@/types/db';
+
+interface Position extends DbPosition {
 	candidates_count: number;
 }
 
@@ -210,7 +208,15 @@ export default function PositionManagement() {
 						setEditingPosition(null);
 					}}
 					onSubmit={handleSavePosition}
-					initialData={editingPosition || undefined}
+					initialData={
+						editingPosition
+							? {
+									...editingPosition,
+									rounds: editingPosition.rounds || [],
+									requirements: editingPosition.requirements!, // Non-null assertion for now or handle appropriately
+							  }
+							: undefined
+					}
 				/>
 			)}
 		</div>

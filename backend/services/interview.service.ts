@@ -70,6 +70,7 @@ export const getPublicInterviewById = async (interviewId: string) => {
             c.name as candidate_name, 
             c.email as candidate_email,
             p.title as position_title,
+            p.organization_id,
             o.name as organization_name,
              (
                 SELECT array_agg(user_id) 
@@ -110,19 +111,21 @@ export const verifyInterviewAccess = async (
 
 	// 2. Check if Interviewer (Authenticated User)
 	if (userId) {
-		// Here we rely on the fact that interviewer_ids contains user_ids
-		// But getPublicInterviewById returns standard array.
-		// We need to verify if userId is in interviewer_ids
-		if (interview.interviewer_ids && interview.interviewer_ids.includes(userId)) {
-			// Fetch user name for identity
-			const user = await sql`SELECT full_name, email FROM user_account WHERE id = ${userId}`;
-			const userData = user[0];
-			if (!userData) return null;
-			return {
-				role: 'interviewer',
-				name: userData?.full_name || userData?.email || 'Interviewer',
-				identity: `interviewer-${userData.email}`,
-			};
+		const user = await sql`SELECT organization_id, role, full_name, email FROM user_account WHERE id = ${userId}`;
+		const userData = user[0];
+
+		if (userData) {
+			const isAssigned = interview.interviewer_ids && interview.interviewer_ids.includes(userId);
+			const isOrgAdmin =
+				userData.organization_id === interview.organization_id && ['admin', 'recruiter'].includes(userData.role);
+
+			if (isAssigned || isOrgAdmin) {
+				return {
+					role: 'interviewer',
+					name: userData.full_name || userData.email || 'Interviewer',
+					identity: `interviewer-${userData.email}`,
+				};
+			}
 		}
 	}
 
@@ -138,6 +141,8 @@ export const createInterview = async (
 		date: string;
 		time: string;
 		interviewerIds: string[];
+		roundTitle?: string;
+		roundType?: string;
 	}
 ) => {
 	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
@@ -177,9 +182,12 @@ export const createInterview = async (
 		const candidateAccessKey =
 			Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+		const roundTitle = data.roundTitle || null;
+		const roundType = data.roundType || null;
+
 		const interview = await tx`
-            INSERT INTO interview (position_id, candidate_id, scheduled_start, status, candidate_access_key)
-            VALUES (${data.positionId}, ${candidateId}, ${scheduledStart}, 'scheduled', ${candidateAccessKey})
+            INSERT INTO interview (position_id, candidate_id, scheduled_start, status, candidate_access_key, round_title, round_type)
+            VALUES (${data.positionId}, ${candidateId}, ${scheduledStart}, 'scheduled', ${candidateAccessKey}, ${roundTitle}, ${roundType})
             RETURNING *
         `;
 
@@ -235,6 +243,7 @@ export const createInterview = async (
 				scheduledStart: new Date(interview.scheduled_start),
 				interviewerEmails: interview.interviewer_emails || [],
 				candidateAccessKey: interview.candidate_access_key,
+				roundTitle: interview.round_title,
 			});
 		}
 	} catch (err) {
@@ -254,6 +263,8 @@ export const updateInterview = async (
 		date?: string;
 		time?: string;
 		interviewerIds?: string[];
+		roundTitle?: string;
+		roundType?: string;
 		status?: string;
 	}
 ) => {

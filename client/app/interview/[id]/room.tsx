@@ -25,6 +25,7 @@ interface InterviewRoomProps {
 	camEnabled: boolean;
 	interviewId?: string;
 	isInterviewer?: boolean;
+	roundTitle?: string;
 }
 
 export default function InterviewRoom({
@@ -35,6 +36,7 @@ export default function InterviewRoom({
 	camEnabled,
 	interviewId,
 	isInterviewer = false,
+	roundTitle,
 }: InterviewRoomProps) {
 	return (
 		<LiveKitRoom
@@ -49,6 +51,7 @@ export default function InterviewRoom({
 				onLeave={onLeave}
 				interviewId={interviewId}
 				isInterviewer={isInterviewer}
+				roundTitle={roundTitle}
 			/>
 			<RoomAudioRenderer />
 		</LiveKitRoom>
@@ -65,10 +68,12 @@ function MyVideoConference({
 	onLeave,
 	interviewId,
 	isInterviewer,
+	roundTitle,
 }: {
 	onLeave: () => void;
 	interviewId?: string;
 	isInterviewer?: boolean;
+	roundTitle?: string;
 }) {
 	const tracks = useTracks(
 		[
@@ -179,9 +184,16 @@ function MyVideoConference({
 			)}
 
 			{/* Participant count indicator */}
-			<div className='absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700 text-sm text-slate-300 flex items-center gap-2'>
-				<span className='h-2 w-2 rounded-full bg-green-500 animate-pulse' />
-				{participants.length} participant{participants.length !== 1 ? 's' : ''}
+			<div className='absolute top-4 left-4 z-10 flex flex-col gap-2'>
+				<div className='px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700 text-sm text-slate-300 flex items-center gap-2 w-fit'>
+					<span className='h-2 w-2 rounded-full bg-green-500 animate-pulse' />
+					{participants.length} participant{participants.length !== 1 ? 's' : ''}
+				</div>
+				{roundTitle && (
+					<div className='px-3 py-1.5 rounded-full bg-orange-900/80 border border-orange-700 text-sm text-orange-200 flex items-center gap-2 w-fit'>
+						<span className='font-medium'>{roundTitle}</span>
+					</div>
+				)}
 			</div>
 
 			<div className='flex-1 p-4'>

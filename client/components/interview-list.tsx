@@ -52,7 +52,8 @@ function getStatusBadge(status: string) {
 			return {
 				label: 'Expired',
 				icon: XCircle,
-				className: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+				className:
+					'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 font-semibold',
 			};
 		case 'in_progress':
 			return {
@@ -76,6 +77,8 @@ interface Interview {
 	interviewer_ids: string[];
 	status: string;
 	candidate_access_key: string;
+	round_title?: string;
+	round_type?: string;
 }
 
 export default function InterviewList() {
@@ -249,26 +252,17 @@ export default function InterviewList() {
 									<div>
 										<div className='flex items-center gap-2'>
 											<h4 className='font-medium text-slate-900 dark:text-white'>{interview.candidate_name}</h4>
-											{(() => {
-												const badge = getStatusBadge(interview.status);
-												if (badge) {
-													const Icon = badge.icon;
-													return (
-														<span
-															className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${badge.className}`}>
-															<Icon className='h-3 w-3' />
-															{badge.label}
-														</span>
-													);
-												}
-												return null;
-											})()}
 										</div>
 										<p className='text-sm text-slate-500 dark:text-slate-400'>{interview.candidate_email}</p>
 										<div className='mt-1 flex items-center gap-4 text-xs text-slate-500'>
 											<span className='flex items-center gap-1.5'>
 												<Briefcase className='h-3 w-3' />
 												{interview.position_title}
+												{interview.round_title && (
+													<span className='ml-1 rounded bg-orange-100 px-1.5 py-0.5 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 font-medium'>
+														{interview.round_title}
+													</span>
+												)}
 											</span>
 											{interview.interviewer_ids && interview.interviewer_ids.length > 0 && (
 												<span className='flex items-center gap-1.5 text-slate-500 dark:text-slate-400'>
@@ -288,6 +282,21 @@ export default function InterviewList() {
 										<Clock className='h-3.5 w-3.5 text-orange-500' />
 										<span>{formatTime(interview.scheduled_start)}</span>
 									</div>
+
+									{(() => {
+										const badge = getStatusBadge(interview.status);
+										if (badge) {
+											const Icon = badge.icon;
+											return (
+												<span
+													className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border ${badge.className}`}>
+													<Icon className='h-3.5 w-3.5' />
+													{badge.label}
+												</span>
+											);
+										}
+										return null;
+									})()}
 
 									<div className='flex items-center gap-2'>
 										{/* Only show Join Lobby for scheduled or in_progress interviews */}
@@ -349,6 +358,8 @@ export default function InterviewList() {
 									positionId: editingInterview.position_id,
 									...parseToLocalInputs(editingInterview.scheduled_start),
 									interviewerIds: editingInterview.interviewer_ids || [],
+									roundTitle: editingInterview.round_title || undefined,
+									roundType: editingInterview.round_type || undefined,
 							  }
 							: undefined
 					}

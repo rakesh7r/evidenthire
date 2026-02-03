@@ -63,9 +63,12 @@ export const notifyInterviewScheduled = async (data: {
 	scheduledStart: Date;
 	interviewerEmails: string[];
 	candidateAccessKey?: string | null;
+	roundTitle?: string | null;
 }) => {
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+	const positionText = data.roundTitle ? `${data.positionTitle} - ${data.roundTitle}` : data.positionTitle;
 
 	// Base link
 	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
@@ -90,8 +93,8 @@ export const notifyInterviewScheduled = async (data: {
 		const eventData: EventAttributes = {
 			start: startArr,
 			duration: { hours: 1 },
-			title: `Interview: ${data.positionTitle}`,
-			description: `Interview for ${data.positionTitle} position.\n\nJoin Link: ${candidateJoinLink}`,
+			title: `Interview: ${positionText}`,
+			description: `Interview for ${positionText}.\n\nJoin Link: ${candidateJoinLink}`,
 			location: 'EvidentHire Video Room',
 			url: candidateJoinLink,
 			organizer: { name: 'EvidentHire', email: 'no-reply@evidenthire.in' },
@@ -118,7 +121,10 @@ export const notifyInterviewScheduled = async (data: {
         <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
             <h2 style="color: #f97316;">Interview Scheduled</h2>
             <p>Hi ${data.candidateName},</p>
-            <p>We are excited to move forward with your application for the <strong>${data.positionTitle}</strong> position.</p>
+            <p>We are excited to move forward with your application for the <strong>${
+							data.positionTitle
+						}</strong> position.</p>
+			${data.roundTitle ? `<p>This interview is for the <strong>${data.roundTitle}</strong> round.</p>` : ''}
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 0;"><strong>Date:</strong> ${dateStr}</p>
                 <p style="margin: 5px 0 0 0;"><strong>Time:</strong> ${timeStr}</p>
@@ -146,8 +152,8 @@ export const notifyInterviewScheduled = async (data: {
 		const eventData: EventAttributes = {
 			start: startArr,
 			duration: { hours: 1 },
-			title: `Interview: ${data.candidateName} (${data.positionTitle})`,
-			description: `Interview with ${data.candidateName} for ${data.positionTitle}.\n\nJoin Link: ${baseLink}`,
+			title: `Interview: ${data.candidateName} (${positionText})`,
+			description: `Interview with ${data.candidateName} for ${positionText}.\n\nJoin Link: ${baseLink}`,
 			location: 'EvidentHire Video Room',
 			url: baseLink,
 			organizer: { name: 'EvidentHire', email: 'no-reply@evidenthire.in' },

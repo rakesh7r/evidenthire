@@ -54,6 +54,8 @@ interface PublicInterview {
 	organization_name: string;
 	scheduled_start: string;
 	status: string;
+	round_title?: string;
+	round_type?: string;
 	accessConfig?: AccessConfig;
 	statusSummary?: StatusSummary;
 }
@@ -366,6 +368,7 @@ export default function JoinInterviewPage() {
 				camEnabled={isVideoOn}
 				interviewId={id as string}
 				isInterviewer={isInterviewer}
+				roundTitle={interview?.round_title}
 			/>
 		);
 	}

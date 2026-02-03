@@ -83,7 +83,10 @@ export const getPositionById = async (userId: string, positionId: string) => {
 	return positions[0];
 };
 
-export const createPosition = async (userId: string, data: { title: string; requirements?: any; status?: string }) => {
+export const createPosition = async (
+	userId: string,
+	data: { title: string; requirements?: any; rounds?: any; status?: string }
+) => {
 	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
 	const userData = user[0];
 
@@ -96,8 +99,10 @@ export const createPosition = async (userId: string, data: { title: string; requ
 	}
 
 	const result = await sql`
-        INSERT INTO position (organization_id, title, requirements, status)
-        VALUES (${userData.organization_id}, ${data.title}, ${data.requirements || {}}, ${data.status || 'open'})
+        INSERT INTO position (organization_id, title, requirements, rounds, status)
+        VALUES (${userData.organization_id}, ${data.title}, ${data.requirements || {}}, ${data.rounds || []}, ${
+		data.status || 'open'
+	})
         RETURNING *
     `;
 	return result[0];
@@ -106,7 +111,7 @@ export const createPosition = async (userId: string, data: { title: string; requ
 export const updatePosition = async (
 	userId: string,
 	positionId: string,
-	data: { title?: string; requirements?: any; status?: string }
+	data: { title?: string; requirements?: any; rounds?: any; status?: string }
 ) => {
 	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
 	const userData = user[0];
@@ -122,6 +127,7 @@ export const updatePosition = async (
 	const updatePayload: any = {};
 	if (data.title !== undefined) updatePayload.title = data.title;
 	if (data.requirements !== undefined) updatePayload.requirements = data.requirements;
+	if (data.rounds !== undefined) updatePayload.rounds = data.rounds;
 	if (data.status !== undefined) updatePayload.status = data.status;
 
 	if (Object.keys(updatePayload).length === 0) {

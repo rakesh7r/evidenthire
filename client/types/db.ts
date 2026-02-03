@@ -23,6 +23,13 @@ export interface EvaluationWeights {
 	depth: number;
 }
 
+export interface Round {
+	title: string;
+	type: string;
+	duration_minutes: number;
+	description?: string;
+}
+
 export interface RequirementsSchema {
 	skills: SkillRequirement[];
 	interview_types: string[];
@@ -64,6 +71,7 @@ export interface Position {
 	organization_id?: string | null; // UUID
 	title: string;
 	requirements?: RequirementsSchema | null; // JSONB
+	rounds?: Round[] | null; // JSONB
 	status: PositionStatus;
 	created_at: string; // ISO Date string
 }
@@ -77,6 +85,8 @@ export interface Interview {
 	status: InterviewStatus;
 	evidence_state: EvidenceState;
 	livekit_room_id?: string | null;
+	round_title?: string | null;
+	round_type?: string | null;
 	created_at: string; // ISO Date string
 }
 

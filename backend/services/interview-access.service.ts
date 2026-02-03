@@ -218,13 +218,23 @@ export async function admitCandidate(
 	interviewId: string,
 	interviewerUserId: string
 ): Promise<{ success: boolean; message: string }> {
-	// Verify the user is an interviewer for this interview
-	const interviewers = await sql`
-		SELECT user_id FROM interview_interviewer 
-		WHERE interview_id = ${interviewId} AND user_id = ${interviewerUserId}
-	`;
+	// Verify user is authorized (Assigned or Admin)
+	const user = await sql`
+        SELECT u.role, u.organization_id, p.organization_id as interview_org_id,
+               EXISTS(SELECT 1 FROM interview_participant ip WHERE ip.interview_id = ${interviewId} AND ip.user_id = u.id AND ip.role = 'interviewer') as is_assigned
+        FROM user_account u, interview i
+        JOIN position p ON i.position_id = p.id
+        WHERE u.id = ${interviewerUserId} AND i.id = ${interviewId}
+    `;
 
-	if (!interviewers[0]) {
+	const userData = user[0];
+	if (!userData) return { success: false, message: 'User not found' };
+
+	const isAssigned = userData.is_assigned;
+	const isOrgAdmin =
+		userData.organization_id === userData.interview_org_id && ['admin', 'recruiter'].includes(userData.role);
+
+	if (!isAssigned && !isOrgAdmin) {
 		return { success: false, message: 'You are not authorized to admit participants to this interview.' };
 	}
 
@@ -278,15 +288,25 @@ export async function endInterview(
 	reason: 'normal' | 'timeout' | 'interviewer_ended' | 'technical_issue',
 	userId?: string
 ): Promise<{ success: boolean; message: string; status?: string }> {
-	// If userId provided, verify they're an interviewer
+	// If userId provided, verify they're an interviewer or admin
 	if (userId) {
-		const interviewers = await sql`
-			SELECT user_id FROM interview_interviewer 
-			WHERE interview_id = ${interviewId} AND user_id = ${userId}
+		const user = await sql`
+			SELECT u.role, u.organization_id, p.organization_id as interview_org_id,
+				   EXISTS(SELECT 1 FROM interview_participant ip WHERE ip.interview_id = ${interviewId} AND ip.user_id = u.id AND ip.role = 'interviewer') as is_assigned
+			FROM user_account u, interview i
+			JOIN position p ON i.position_id = p.id
+			WHERE u.id = ${userId} AND i.id = ${interviewId}
 		`;
 
-		if (!interviewers[0]) {
-			return { success: false, message: 'Only interviewers can end the interview.' };
+		const userData = user[0];
+		if (!userData) return { success: false, message: 'User not found' };
+
+		const isAssigned = userData.is_assigned;
+		const isOrgAdmin =
+			userData.organization_id === userData.interview_org_id && ['admin', 'recruiter'].includes(userData.role);
+
+		if (!isAssigned && !isOrgAdmin) {
+			return { success: false, message: 'Only authorized interviewers can end the interview.' };
 		}
 	}
 

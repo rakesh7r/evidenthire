@@ -9,22 +9,12 @@ interface PositionFormProps {
 	initialData?: PositionFormData;
 }
 
-export type SkillLevel = 'basic' | 'intermediate' | 'senior';
-
-export interface SkillRequirement {
-	name: string;
-	level: SkillLevel;
-}
-
-export interface EvaluationWeights {
-	communication: number;
-	problem_solving: number;
-	depth: number;
-}
+import { Round, SkillLevel, SkillRequirement, EvaluationWeights } from '@/types/db';
 
 export interface RequirementsSchema {
 	skills: SkillRequirement[];
-	interview_types: string[];
+	// interview_types is deprecated in favor of rounds, keeping for backward compat if needed but valid positions use rounds
+	interview_types?: string[];
 	evaluation_weights: EvaluationWeights;
 }
 
@@ -32,10 +22,18 @@ export interface RequirementsSchema {
 export interface PositionFormData {
 	title: string;
 	requirements: RequirementsSchema;
+	rounds: Round[];
 	status: 'open' | 'closed';
 }
 
-const INTERVIEW_TYPES_OPTIONS = ['technical', 'system_design', 'cultural_fit', 'managerial'];
+const INTERVIEW_TYPES_OPTIONS = [
+	'technical',
+	'system_design',
+	'cultural_fit',
+	'managerial',
+	'screening',
+	'final_round',
+];
 
 export default function AddPositionModal({ onClose, onSubmit, initialData }: PositionFormProps) {
 	const [title, setTitle] = useState(initialData?.title || '');
@@ -45,9 +43,13 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 	const [skills, setSkills] = useState<SkillRequirement[]>(initialData?.requirements.skills || []);
 	const [newSkillName, setNewSkillName] = useState('');
 	const [newSkillLevel, setNewSkillLevel] = useState<SkillLevel>('intermediate');
-	const [selectedInterviewTypes, setSelectedInterviewTypes] = useState<string[]>(
-		initialData?.requirements.interview_types || []
-	);
+
+	// Rounds State
+	const [rounds, setRounds] = useState<Round[]>(initialData?.rounds || []);
+	const [newRoundTitle, setNewRoundTitle] = useState('');
+	const [newRoundType, setNewRoundType] = useState(INTERVIEW_TYPES_OPTIONS[0]);
+	const [newRoundDuration, setNewRoundDuration] = useState(60);
+
 	const [weights, setWeights] = useState<EvaluationWeights>(
 		initialData?.requirements.evaluation_weights || {
 			communication: 0.3,
@@ -68,12 +70,23 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 		setSkills(skills.filter((_, i) => i !== index));
 	};
 
-	const toggleInterviewType = (type: string) => {
-		if (selectedInterviewTypes.includes(type)) {
-			setSelectedInterviewTypes(selectedInterviewTypes.filter((t) => t !== type));
-		} else {
-			setSelectedInterviewTypes([...selectedInterviewTypes, type]);
+	const handleAddRound = () => {
+		if (newRoundTitle.trim()) {
+			setRounds([
+				...rounds,
+				{
+					title: newRoundTitle.trim(),
+					type: newRoundType,
+					duration_minutes: newRoundDuration,
+				},
+			]);
+			setNewRoundTitle('');
+			setNewRoundDuration(60);
 		}
+	};
+
+	const removeRound = (index: number) => {
+		setRounds(rounds.filter((_, i) => i !== index));
 	};
 
 	const handleWeightChange = (key: keyof EvaluationWeights, value: number) => {
@@ -89,9 +102,9 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 			title,
 			requirements: {
 				skills,
-				interview_types: selectedInterviewTypes,
 				evaluation_weights: weights,
 			},
+			rounds,
 			status,
 		});
 		onClose();
@@ -226,30 +239,88 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 					</div>
 
 					<div className='grid grid-cols-1 md:grid-cols-2 gap-8'>
-						{/* Interview Types */}
+						{/* Interview Rounds */}
 						<div className='space-y-4'>
 							<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
 								<FileText className='h-4 w-4' /> Interview Rounds
 							</h4>
-							<div className='grid grid-cols-1 gap-2'>
-								{INTERVIEW_TYPES_OPTIONS.map((type) => (
-									<label
-										key={type}
-										className={`flex cursor-pointer items-center justify-between rounded-lg border px-4 py-3 transition-all ${
-											selectedInterviewTypes.includes(type)
-												? 'border-orange-500 bg-orange-500/10 text-slate-900 dark:text-white'
-												: 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
-										}`}>
-										<span className='capitalize font-medium'>{type.replace('_', ' ')}</span>
+
+							{/* Add Round Form */}
+							<div className='bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50 space-y-3'>
+								<div>
+									<label className='text-xs text-slate-500 dark:text-slate-400'>Round Title</label>
+									<input
+										type='text'
+										value={newRoundTitle}
+										onChange={(e) => setNewRoundTitle(e.target.value)}
+										className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm'
+										placeholder='e.g. Initial Screening'
+									/>
+								</div>
+								<div className='flex gap-2'>
+									<div className='flex-1'>
+										<label className='text-xs text-slate-500 dark:text-slate-400'>Type</label>
+										<select
+											value={newRoundType}
+											onChange={(e) => setNewRoundType(e.target.value)}
+											className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm capitalize'>
+											{INTERVIEW_TYPES_OPTIONS.map((t) => (
+												<option
+													key={t}
+													value={t}>
+													{t.replace('_', ' ')}
+												</option>
+											))}
+										</select>
+									</div>
+									<div className='w-24'>
+										<label className='text-xs text-slate-500 dark:text-slate-400'>Duration (m)</label>
 										<input
-											type='checkbox'
-											className='sr-only'
-											checked={selectedInterviewTypes.includes(type)}
-											onChange={() => toggleInterviewType(type)}
+											type='number'
+											min='15'
+											step='15'
+											value={newRoundDuration}
+											onChange={(e) => setNewRoundDuration(parseInt(e.target.value))}
+											className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm'
 										/>
-										{selectedInterviewTypes.includes(type) && <CheckCircle className='h-4 w-4 text-orange-500' />}
-									</label>
-								))}
+									</div>
+								</div>
+								<button
+									type='button'
+									onClick={handleAddRound}
+									className='w-full rounded-lg bg-orange-600 px-3 py-2 text-white hover:bg-orange-500 text-sm font-medium'>
+									Add Round
+								</button>
+							</div>
+
+							{/* Rounds List */}
+							<div className='space-y-2'>
+								{rounds.length === 0 ? (
+									<p className='text-sm text-slate-500 italic text-center py-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg'>
+										No rounds defined. Add a round to start.
+									</p>
+								) : (
+									rounds.map((round, index) => (
+										<div
+											key={index}
+											className='flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'>
+											<div>
+												<div className='font-medium text-slate-900 dark:text-white'>{round.title}</div>
+												<div className='text-xs text-slate-500 flex gap-2'>
+													<span className='capitalize'>{round.type.replace('_', ' ')}</span>
+													<span>•</span>
+													<span>{round.duration_minutes} min</span>
+												</div>
+											</div>
+											<button
+												type='button'
+												onClick={() => removeRound(index)}
+												className='p-1 text-slate-400 hover:text-red-500'>
+												<X className='h-4 w-4' />
+											</button>
+										</div>
+									))
+								)}
 							</div>
 						</div>
 
