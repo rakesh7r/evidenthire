@@ -23,7 +23,6 @@ export default function OnboardingPage() {
 	const supabase = createClient();
 	const [isLoading, setIsLoading] = useState(false);
 
-	// Form State
 	const [formData, setFormData] = useState({
 		id: '',
 		fullName: '',
@@ -36,9 +35,52 @@ export default function OnboardingPage() {
 		country: '',
 	});
 
-	// Load user email on mount
+	// Track if user was invited (already has organization)
+	const [isInvitedUser, setIsInvitedUser] = useState(false);
+	const [existingOrgName, setExistingOrgName] = useState('');
+	const [isCheckingUser, setIsCheckingUser] = useState(true);
+
+	// Check if user already exists and is onboarded
+	useEffect(() => {
+		const checkExistingUser = async () => {
+			try {
+				const res = await api.get('/users/me');
+				const userData = res.data;
+
+				// If user is fully onboarded (has org and full_name), redirect to dashboard
+				if (userData.organization_id && userData.full_name) {
+					router.push('/dashboard');
+					return;
+				}
+
+				// If user has org but no full_name, they're invited but not onboarded
+				if (userData.organization_id) {
+					setIsInvitedUser(true);
+					setExistingOrgName(userData.organization_name || 'Your Organization');
+					setFormData((prev) => ({
+						...prev,
+						email: userData.email || '',
+						id: userData.id || '',
+						fullName: userData.full_name || '',
+					}));
+				}
+
+				setIsCheckingUser(false);
+			} catch (error: any) {
+				// User doesn't exist yet, normal signup flow
+				console.log('User not found, proceeding with normal onboarding');
+				setIsCheckingUser(false);
+			}
+		};
+
+		checkExistingUser();
+	}, [router]);
+
+	// Load user email from Supabase auth if not already set
 	useEffect(() => {
 		const getUser = async () => {
+			if (formData.email) return; // Already have email from API
+
 			const {
 				data: { user },
 			} = await supabase.auth.getUser();
@@ -46,13 +88,13 @@ export default function OnboardingPage() {
 			if (user) {
 				setFormData((prev) => ({
 					...prev,
-					email: user.email || '',
-					id: user.id,
+					email: prev.email || user.email || '',
+					id: prev.id || user.id,
 				}));
 			}
 		};
 		getUser();
-	}, [supabase.auth]);
+	}, [supabase.auth, formData.email]);
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
 		const { name, value } = e.target;
@@ -73,6 +115,16 @@ export default function OnboardingPage() {
 			finally: () => setIsLoading(false),
 		});
 	};
+
+	// Show loading while checking user status
+	if (isCheckingUser) {
+		return (
+			<div className='min-h-screen bg-slate-950 flex flex-col justify-center items-center'>
+				<Loader2 className='h-8 w-8 animate-spin text-orange-500' />
+				<p className='mt-4 text-slate-400'>Loading...</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className='min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden'>
@@ -199,51 +251,70 @@ export default function OnboardingPage() {
 							{/* Organization & Location Section */}
 							<div className='space-y-6'>
 								<h3 className='text-sm font-semibold text-orange-500 uppercase tracking-wider flex items-center gap-2'>
-									<Building2 className='h-4 w-4' /> Organization & Location
+									<Building2 className='h-4 w-4' /> {isInvitedUser ? 'Your Organization' : 'Organization & Location'}
 								</h3>
 
 								<div className='space-y-4'>
-									<div>
-										<label
-											htmlFor='organizationName'
-											className='block text-sm font-medium text-slate-300 mb-1'>
-											Organization Name
-										</label>
-										<div className='relative'>
-											<Building2 className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
-											<input
-												id='organizationName'
-												name='organizationName'
-												type='text'
-												required
-												value={formData.organizationName}
-												onChange={handleChange}
-												className='block w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 pl-10 pr-3 text-white placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500 sm:text-sm'
-												placeholder='Acme Inc.'
-											/>
+									{isInvitedUser ? (
+										// Show read-only org info for invited users
+										<div className='p-4 rounded-lg bg-slate-800/30 border border-slate-700'>
+											<div className='flex items-center gap-3'>
+												<div className='h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center'>
+													<Building2 className='h-5 w-5 text-orange-500' />
+												</div>
+												<div>
+													<p className='text-white font-medium'>{existingOrgName}</p>
+													<p className='text-sm text-slate-400'>You've been invited to join this organization</p>
+												</div>
+												<CheckCircle2 className='h-5 w-5 text-green-500 ml-auto' />
+											</div>
 										</div>
-									</div>
+									) : (
+										// Show org input fields for new users
+										<>
+											<div>
+												<label
+													htmlFor='organizationName'
+													className='block text-sm font-medium text-slate-300 mb-1'>
+													Organization Name
+												</label>
+												<div className='relative'>
+													<Building2 className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
+													<input
+														id='organizationName'
+														name='organizationName'
+														type='text'
+														required
+														value={formData.organizationName}
+														onChange={handleChange}
+														className='block w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 pl-10 pr-3 text-white placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500 sm:text-sm'
+														placeholder='Acme Inc.'
+													/>
+												</div>
+											</div>
 
-									<div>
-										<label
-											htmlFor='organizationDomain'
-											className='block text-sm font-medium text-slate-300 mb-1'>
-											Domain
-										</label>
-										<div className='relative'>
-											<Globe className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
-											<input
-												id='organizationDomain'
-												name='organizationDomain'
-												type='text'
-												required
-												value={formData.organizationDomain}
-												onChange={handleChange}
-												className='block w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 pl-10 pr-3 text-white placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500 sm:text-sm'
-												placeholder='acme.inc'
-											/>
-										</div>
-									</div>
+											<div>
+												<label
+													htmlFor='organizationDomain'
+													className='block text-sm font-medium text-slate-300 mb-1'>
+													Domain
+												</label>
+												<div className='relative'>
+													<Globe className='absolute left-3 top-2.5 h-4 w-4 text-slate-500' />
+													<input
+														id='organizationDomain'
+														name='organizationDomain'
+														type='text'
+														required
+														value={formData.organizationDomain}
+														onChange={handleChange}
+														className='block w-full rounded-lg border border-slate-700 bg-slate-800/50 py-2.5 pl-10 pr-3 text-white placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500 sm:text-sm'
+														placeholder='acme.inc'
+													/>
+												</div>
+											</div>
+										</>
+									)}
 
 									<div className='grid grid-cols-2 gap-4'>
 										<div>
