@@ -1,8 +1,17 @@
 import { sql } from '../db';
+import { createClient } from '@supabase/supabase-js';
 
 export interface User {
 	id: string;
 	email: string;
+}
+
+// Helper to get Supabase admin client
+function getSupabaseAdmin() {
+	if (!process.env.SUPABASE_PROJECT_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+		return null;
+	}
+	return createClient(process.env.SUPABASE_PROJECT_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export const createUser = async (user: User) => {
@@ -16,14 +25,13 @@ export const createUser = async (user: User) => {
 			// Email exists with different ID - this means user was invited before signing up.
 			// Update the existing record's ID to match the new Supabase auth ID.
 			// This links the pre-created account to the actual authenticated user.
-			// Use a transaction to update all related tables.
 			const oldId = existing[0].id;
+
+			console.log(`Migrating user ${user.email}: old ID ${oldId} -> new ID ${user.id}`);
 
 			const result = await sql.begin(async (tx: any) => {
 				// Update related tables first (foreign key references)
 				await tx`UPDATE interview_participant SET user_id = ${user.id} WHERE user_id = ${oldId}`;
-				await tx`UPDATE interview SET deleted_by = ${user.id} WHERE deleted_by = ${oldId}`;
-				await tx`UPDATE audit_log SET actor_id = ${user.id} WHERE actor_id = ${oldId}`;
 
 				// Now update the user_account ID
 				const updated = await tx`
@@ -34,6 +42,18 @@ export const createUser = async (user: User) => {
 				`;
 				return updated[0];
 			});
+
+			// Clean up old Supabase user (if different from new) to avoid orphaned accounts
+			const supabase = getSupabaseAdmin();
+			if (supabase && oldId !== user.id) {
+				try {
+					await supabase.auth.admin.deleteUser(oldId);
+					console.log(`Cleaned up old Supabase user ${oldId}`);
+				} catch (cleanupErr) {
+					// Not critical - the old ID might not exist in Supabase
+					console.log(`Could not cleanup old Supabase user ${oldId} (may not exist)`);
+				}
+			}
 
 			return result;
 		}

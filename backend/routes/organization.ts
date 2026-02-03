@@ -54,10 +54,11 @@ organization.put('/members/:id', async (c) => {
 organization.delete('/members/:id', async (c) => {
 	const user = c.get('user');
 	const targetUserId = c.req.param('id');
+	const deleteCompletely = c.req.query('deleteCompletely') === 'true';
 
 	try {
-		await removeMember(user.id, targetUserId);
-		return c.json({ success: true });
+		await removeMember(user.id, targetUserId, { deleteCompletely });
+		return c.json({ success: true, deleted: deleteCompletely });
 	} catch (err: any) {
 		return c.json({ error: err.message }, 400);
 	}
