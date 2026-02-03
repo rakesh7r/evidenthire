@@ -5,7 +5,9 @@ import {
 	startTrackAudioRecording,
 	invalidateSessionCache,
 	getLastSessionId,
+	getLastSessionRecord,
 } from '../services/livekit.service';
+import { endInterview } from '../services/interview-access.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const webhook = new Hono();
@@ -63,15 +65,20 @@ webhook.post('/', async (c) => {
 			case 'room_finished':
 				console.log(`Room finished: ${roomName}. Processing session end.`);
 
-				// Get the session ID that just ended
-				const sessionId = await getLastSessionId(interviewId);
+				// Get the session record from database (more reliable than string ID)
+				const sessionRecord = await getLastSessionRecord(interviewId);
+				const sessionId = sessionRecord
+					? `session${sessionRecord.session_number}`
+					: await getLastSessionId(interviewId);
 
 				if (sessionId && process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL) {
-					// Send session_ended event to transcript worker queue
+					// Send session_ended event to transcript worker queue with DB record info
 					const payload = {
 						event: 'session_ended',
 						interviewId,
 						sessionId,
+						sessionDbId: sessionRecord?.id, // Include database ID for more reliable lookups
+						sessionNumber: sessionRecord?.session_number,
 						timestamp: new Date().toISOString(),
 					};
 
@@ -81,11 +88,20 @@ webhook.post('/', async (c) => {
 							MessageBody: JSON.stringify(payload),
 						})
 					);
-					console.log(`Session ended event sent to transcript queue for session ${sessionId}`);
+					console.log(
+						`Session ended event sent to transcript queue for session ${sessionId} (DB ID: ${sessionRecord?.id})`
+					);
 				}
 
-				// Invalidate session cache so next session gets a new ID
-				invalidateSessionCache(interviewId);
+				// Invalidate session cache so next session gets a new ID (this is now async)
+				await invalidateSessionCache(interviewId);
+
+				// Auto-end the interview if it wasn't manually ended by the interviewer
+				// This is a normal room finish, so participants left
+				const endResult = await endInterview(interviewId, 'normal');
+				if (endResult.success) {
+					console.log(`Interview ${interviewId} auto-ended with status: ${endResult.status}`);
+				}
 				break;
 		}
 

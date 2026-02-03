@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { X, User, Briefcase, Calendar, Clock, Mail, Users, Check, Search, Plus } from 'lucide-react';
-import { UserRole, Position } from '@/types/db';
+import { UserRole, Position, Round } from '@/types/db';
 
 export interface SimpleUser {
 	id: string;
@@ -23,6 +23,8 @@ interface CreateInterviewModalProps {
 		date: string;
 		time: string;
 		interviewerIds: string[];
+		roundTitle?: string;
+		roundType?: string;
 	};
 }
 
@@ -41,6 +43,35 @@ export default function CreateInterviewModal({
 	const [selectedPositionId, setSelectedPositionId] = useState(initialData?.positionId || '');
 	const [date, setDate] = useState(initialData?.date || '');
 	const [time, setTime] = useState(initialData?.time || '');
+
+	// Round State
+	const [selectedRound, setSelectedRound] = useState<Round | null>(() => {
+		if (initialData?.roundTitle) {
+			return {
+				title: initialData.roundTitle,
+				type: initialData.roundType || 'technical',
+				duration_minutes: 60,
+			};
+		}
+		return null;
+	});
+
+	const selectedPosition = useMemo(
+		() => positions.find((p) => p.id === selectedPositionId),
+		[positions, selectedPositionId]
+	);
+
+	const availableRounds = selectedPosition?.rounds || [];
+
+	// Track previous position to only reset round on actual change
+	const prevPositionId = useRef(selectedPositionId);
+
+	useEffect(() => {
+		if (prevPositionId.current !== selectedPositionId) {
+			setSelectedRound(null);
+			prevPositionId.current = selectedPositionId;
+		}
+	}, [selectedPositionId]);
 
 	// Interviewer Selection State
 	const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>(initialData?.interviewerIds || []);
@@ -104,6 +135,8 @@ export default function CreateInterviewModal({
 			date,
 			time,
 			interviewerIds: selectedInterviewerIds,
+			roundTitle: selectedRound?.title,
+			roundType: selectedRound?.type,
 		});
 		onClose();
 	};
@@ -210,6 +243,42 @@ export default function CreateInterviewModal({
 									))}
 							</select>
 						</div>
+
+						{/* Round Selection */}
+						{availableRounds.length > 0 && (
+							<div className='space-y-2 animate-in fade-in slide-in-from-top-2 duration-200'>
+								<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Interview Round</label>
+								<select
+									required
+									value={selectedRound ? JSON.stringify(selectedRound) : ''}
+									onChange={(e) => {
+										if (e.target.value) {
+											setSelectedRound(JSON.parse(e.target.value));
+										} else {
+											setSelectedRound(null);
+										}
+									}}
+									className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 px-3 text-sm text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none'>
+									<option
+										value=''
+										disabled>
+										Select a round...
+									</option>
+									{availableRounds.map((round, index) => (
+										<option
+											key={index}
+											value={JSON.stringify(round)}>
+											{round.title} ({round.duration_minutes} min) - {round.type.replace('_', ' ')}
+										</option>
+									))}
+								</select>
+								{selectedRound && (
+									<p className='text-xs text-slate-500 dark:text-slate-400'>
+										Standard duration: {selectedRound.duration_minutes} minutes
+									</p>
+								)}
+							</div>
+						)}
 					</div>
 
 					{/* Schedule Details */}

@@ -10,6 +10,14 @@ import {
 } from 'livekit-server-sdk';
 import { S3Client, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
+import {
+	getOrCreateSession,
+	getActiveSession,
+	getLatestSession,
+	endSession,
+	upsertSessionParticipant,
+	type InterviewSession,
+} from './session.service';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
@@ -27,140 +35,102 @@ const s3Client = new S3Client({
 	},
 });
 
-// Cache to track session start times (used for anchoring track timestamps)
+// In-memory cache for session start times (for quick offset calculation)
+// This is still useful for performance, but the source of truth is the database
 const sessionStartTimeCache: Map<string, number> = new Map();
 
-const getNextSessionId = async (bucket: string, prefix: string): Promise<string> => {
-	try {
-		console.log(`Checking sessions in bucket: ${bucket} with prefix: ${prefix}`);
-		const command = new ListObjectsV2Command({
-			Bucket: bucket,
-			Prefix: prefix.endsWith('/') ? prefix : `${prefix}/`,
-			Delimiter: '/',
-		});
-		const response = await s3Client.send(command);
-		const commonPrefixes = response.CommonPrefixes || [];
+/**
+ * Get or create a session using the database
+ * Returns the session and whether it's a new session
+ */
+const getOrCreateSessionFromDb = async (
+	interviewId: string,
+	s3Bucket: string
+): Promise<{ session: InterviewSession; sessionId: string; isNew: boolean }> => {
+	const { session, isNew } = await getOrCreateSession(interviewId, s3Bucket);
+	const sessionId = `session${session.session_number}`;
 
-		let maxSession = 0;
-		for (const p of commonPrefixes) {
-			const parts = p.Prefix?.split('/') || [];
-			// parts might be ["prefix", "...", "session1", ""]
-			const folderName = parts[parts.length - 2];
-			if (folderName && folderName.startsWith('session')) {
-				const num = parseInt(folderName.replace('session', ''), 10);
-				if (!isNaN(num) && num > maxSession) {
-					maxSession = num;
-				}
-			}
-		}
-
-		return `session${maxSession + 1}`;
-	} catch (error) {
-		console.error('Error fetching next session ID:', error);
-		return 'session1'; // Default start
-	}
-};
-
-// Cache to track active session per interview
-// This ensures all participants joining the same session use the same session ID
-// Session expires after SESSION_TTL_MS of inactivity (e.g., when interview ends and restarts)
-const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const activeSessionCache: Map<string, { sessionId: string; expiresAt: number }> = new Map();
-
-const getOrCreateSessionId = async (bucket: string, interviewId: string, sessionsBasePath: string): Promise<string> => {
-	const now = Date.now();
-	const cached = activeSessionCache.get(interviewId);
-
-	// If we have a valid cached session (not expired), use it
-	if (cached && cached.expiresAt > now) {
-		// Extend the TTL since there's activity
-		cached.expiresAt = now + SESSION_TTL_MS;
-		console.log(`Using cached session for interview ${interviewId}: ${cached.sessionId}`);
-		return cached.sessionId;
-	}
-
-	// No valid cache, fetch the next session ID from S3
-	const sessionId = await getNextSessionId(bucket, sessionsBasePath);
-
-	// Cache it with TTL
-	activeSessionCache.set(interviewId, {
-		sessionId,
-		expiresAt: now + SESSION_TTL_MS,
-	});
-
-	// Track session start time for this interview+session combo
+	// Cache the session start time for quick access
 	const sessionKey = `${interviewId}:${sessionId}`;
 	if (!sessionStartTimeCache.has(sessionKey)) {
-		sessionStartTimeCache.set(sessionKey, now);
-		console.log(`Session start time recorded for ${sessionKey}: ${now}`);
+		const startTime = new Date(session.started_at).getTime();
+		sessionStartTimeCache.set(sessionKey, startTime);
+		console.log(`Session start time cached for ${sessionKey}: ${startTime}`);
 	}
 
-	console.log(`Created new session for interview ${interviewId}: ${sessionId}`);
-	return sessionId;
+	return { session, sessionId, isNew };
 };
 
-// Helper to get the latest session ID from S3
-const getLatestSessionIdFromS3 = async (bucket: string, prefix: string): Promise<string | null> => {
-	try {
-		const command = new ListObjectsV2Command({
-			Bucket: bucket,
-			Prefix: prefix.endsWith('/') ? prefix : `${prefix}/`,
-			Delimiter: '/',
-		});
-		const response = await s3Client.send(command);
-		const commonPrefixes = response.CommonPrefixes || [];
+/**
+ * Get the session start time from cache or database
+ */
+const getSessionStartTime = async (interviewId: string, sessionId: string): Promise<number> => {
+	const sessionKey = `${interviewId}:${sessionId}`;
 
-		let maxSession = 0;
-		for (const p of commonPrefixes) {
-			const parts = p.Prefix?.split('/') || [];
-			const folderName = parts[parts.length - 2];
-			if (folderName && folderName.startsWith('session')) {
-				const num = parseInt(folderName.replace('session', ''), 10);
-				if (!isNaN(num) && num > maxSession) {
-					maxSession = num;
-				}
-			}
-		}
-
-		return maxSession > 0 ? `session${maxSession}` : null;
-	} catch (error) {
-		console.error('Error fetching latest session ID from S3:', error);
-		return null;
+	// Check cache first
+	if (sessionStartTimeCache.has(sessionKey)) {
+		return sessionStartTimeCache.get(sessionKey)!;
 	}
+
+	// Cache miss - get from database
+	const sessionNumber = parseInt(sessionId.replace('session', ''), 10);
+	const sessions = await getLatestSession(interviewId);
+	if (sessions && sessions.session_number === sessionNumber) {
+		const startTime = new Date(sessions.started_at).getTime();
+		sessionStartTimeCache.set(sessionKey, startTime);
+		return startTime;
+	}
+
+	// Fallback to current time
+	const now = Date.now();
+	sessionStartTimeCache.set(sessionKey, now);
+	return now;
 };
 
-// Function to get the last session ID for an interview (checks cache first, then S3)
+/**
+ * Get the last session ID for an interview (from database)
+ */
 export const getLastSessionId = async (interviewId: string): Promise<string | null> => {
-	// First check cache
-	const cached = activeSessionCache.get(interviewId);
-	if (cached?.sessionId) {
-		console.log(`Found session ${cached.sessionId} in cache for interview ${interviewId}`);
-		return cached.sessionId;
+	const session = await getLatestSession(interviewId);
+	if (session) {
+		const sessionId = `session${session.session_number}`;
+		console.log(`Found session ${sessionId} from DB for interview ${interviewId}`);
+		return sessionId;
 	}
-
-	// Cache miss - try to find from S3
-	const s3Bucket = process.env.AWS_S3_BUCKET;
-	if (!s3Bucket) {
-		console.warn('AWS_S3_BUCKET not set, cannot lookup session from S3');
-		return null;
-	}
-
-	const sessionsBasePath = `${interviewId}/sessions`;
-	const sessionId = await getLatestSessionIdFromS3(s3Bucket, sessionsBasePath);
-	console.log(`Found session ${sessionId} from S3 for interview ${interviewId}`);
-	return sessionId;
+	console.log(`No session found in DB for interview ${interviewId}`);
+	return null;
 };
 
-// Function to invalidate session cache (call when interview ends)
-export const invalidateSessionCache = (interviewId: string) => {
-	const cached = activeSessionCache.get(interviewId);
-	if (cached) {
-		// Also clear the session start time
-		const sessionKey = `${interviewId}:${cached.sessionId}`;
+/**
+ * Get the database session record for an interview
+ */
+export const getLastSessionRecord = async (interviewId: string): Promise<InterviewSession | null> => {
+	return await getLatestSession(interviewId);
+};
+
+/**
+ * Invalidate/end a session (call when interview room ends)
+ */
+export const invalidateSessionCache = async (interviewId: string): Promise<void> => {
+	// Get the active session from database
+	const session = await getActiveSession(interviewId);
+	if (session) {
+		// Calculate duration
+		const startTime = new Date(session.started_at).getTime();
+		const endTime = Date.now();
+		const durationMs = endTime - startTime;
+
+		// Mark session as ended in database
+		await endSession(session.id, durationMs);
+
+		// Clear from local cache
+		const sessionKey = `${interviewId}:session${session.session_number}`;
 		sessionStartTimeCache.delete(sessionKey);
+
+		console.log(`Session ${session.session_number} ended for interview ${interviewId} (duration: ${durationMs}ms)`);
+	} else {
+		console.log(`No active session to invalidate for interview ${interviewId}`);
 	}
-	activeSessionCache.delete(interviewId);
-	console.log(`Session cache invalidated for interview ${interviewId}`);
 };
 
 export const createAccessToken = async (
@@ -237,15 +207,13 @@ export const startTrackAudioRecording = async (
 		return;
 	}
 
-	// Determine session ID - uses cache to ensure all participants in the same session use the same ID
-	const sessionsBasePath = `${metadata.id}/sessions`;
-	const sessionId = await getOrCreateSessionId(s3Bucket, interviewId, sessionsBasePath);
-
-	const basePath = `${sessionsBasePath}/${sessionId}`;
+	// Get or create session from database (replaces in-memory cache)
+	const { session, sessionId, isNew } = await getOrCreateSessionFromDb(interviewId, s3Bucket);
+	const basePath = session.s3_session_path || `${interviewId}/sessions/${sessionId}`;
 
 	// Extract email and role from identity
 	let email = 'unknown';
-	let role = 'unknown';
+	let role: 'candidate' | 'interviewer' | 'observer' = 'interviewer';
 	if (participantIdentity) {
 		if (participantIdentity.startsWith('candidate-')) {
 			email = participantIdentity.replace('candidate-', '');
@@ -258,19 +226,33 @@ export const startTrackAudioRecording = async (
 		}
 	}
 
-	// Get session start time and calculate track start offset
-	const sessionKey = `${interviewId}:${sessionId}`;
-	const sessionStartTime = sessionStartTimeCache.get(sessionKey) || Date.now();
+	// Get session start time from database/cache
+	const sessionStartTime = await getSessionStartTime(interviewId, sessionId);
 	const trackStartTime = Date.now();
 	const trackStartOffsetMs = trackStartTime - sessionStartTime;
 
-	// Write track metadata to S3 for timeline anchoring
+	// Store participant in database
+	const s3AudioPrefix = `${basePath}/${email}`;
+	const s3MetadataUri = `${basePath}/track_${email}.json`;
+
+	await upsertSessionParticipant(session.id, participantIdentity || email, {
+		email,
+		role,
+		trackId,
+		trackOffsetMs: trackStartOffsetMs,
+		s3AudioPrefix,
+		s3MetadataUri,
+	});
+
+	// Write track metadata to S3 for timeline anchoring (keep for backward compatibility)
 	const trackMetadata = {
 		trackId,
 		participantIdentity,
 		email,
 		role,
 		sessionId,
+		sessionDbId: session.id,
+		sessionNumber: session.session_number,
 		sessionStartTime,
 		trackStartTime,
 		trackStartOffsetMs,
