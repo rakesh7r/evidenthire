@@ -98,6 +98,53 @@ export const createDatabaseTables = async () => {
               created_at        timestamptz not null default now()
             )`;
 		console.log('Interview table created successfully');
+
+		// =========================
+		// INTERVIEW SESSION (tracks each recording session within an interview)
+		// =========================
+		await sql`CREATE TABLE IF NOT EXISTS interview_session (
+              id                uuid primary key DEFAULT gen_random_uuid(),
+              interview_id      uuid references interview(id) NOT NULL,
+              session_number    integer NOT NULL,
+              status            text check (
+                                  status in ('active','ended','processing','completed','failed')
+                                ) DEFAULT 'active',
+              started_at        timestamptz NOT NULL DEFAULT now(),
+              ended_at          timestamptz,
+              s3_session_path   text,
+              total_duration_ms integer,
+              participant_count integer DEFAULT 0,
+              transcript_status text check (
+                                  transcript_status in ('pending','processing','completed','failed')
+                                ) DEFAULT 'pending',
+              transcript_s3_uri text,
+              metadata          jsonb,
+              created_at        timestamptz NOT NULL DEFAULT now(),
+              updated_at        timestamptz NOT NULL DEFAULT now(),
+              UNIQUE(interview_id, session_number)
+            )`;
+		console.log('Interview Session table created successfully');
+
+		// =========================
+		// SESSION PARTICIPANT (tracks participants in each session)
+		// =========================
+		await sql`CREATE TABLE IF NOT EXISTS session_participant (
+              id                uuid primary key DEFAULT gen_random_uuid(),
+              session_id        uuid references interview_session(id) NOT NULL,
+              participant_identity text NOT NULL,
+              email             text,
+              role              text check (role in ('candidate','interviewer','observer')),
+              track_id          text,
+              joined_at         timestamptz NOT NULL DEFAULT now(),
+              left_at           timestamptz,
+              track_offset_ms   integer DEFAULT 0,
+              s3_audio_prefix   text,
+              s3_metadata_uri   text,
+              chunks_processed  integer DEFAULT 0,
+              created_at        timestamptz NOT NULL DEFAULT now(),
+              UNIQUE(session_id, participant_identity)
+            )`;
+		console.log('Session Participant table created successfully');
 		// =========================
 		// INTERVIEW PARTICIPANTS (M:N)
 		// =========================
@@ -116,12 +163,19 @@ export const createDatabaseTables = async () => {
 		await sql`CREATE TABLE IF NOT EXISTS media_chunk (
               id              uuid primary key DEFAULT gen_random_uuid(),
               interview_id    uuid references interview(id),
+              session_id      uuid references interview_session(id),
+              participant_id  uuid references session_participant(id),
               s3_uri          text not null,
+              chunk_index     integer,
               start_offset_ms integer not null,
               end_offset_ms   integer not null,
+              duration_ms     integer,
               speaker_type    text check (
                                 speaker_type in ('candidate','interviewer','unknown')
                               ),
+              transcription_status text check (
+                                transcription_status in ('pending','processing','completed','failed')
+                              ) DEFAULT 'pending',
               created_at      timestamptz not null default now(),
               deleted_at      timestamptz,
               deleted_by      uuid references user_account(id)

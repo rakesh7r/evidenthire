@@ -21,6 +21,7 @@ import CreateInterviewModal, { SimpleUser } from './create-interview-modal';
 import { Position, UserRole } from '@/types/db';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { formatDate, formatTime, parseToLocalInputs } from '@/utils/date';
 
 interface Interview {
 	id: string;
@@ -223,15 +224,10 @@ export default function InterviewList() {
 								<div className='flex flex-col items-end gap-3 sm:flex-row sm:items-center'>
 									<div className='flex items-center gap-2 rounded-md bg-slate-100 dark:bg-slate-900 px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300'>
 										<Calendar className='h-3.5 w-3.5 text-orange-500' />
-										<span>{new Date(interview.scheduled_start).toLocaleDateString()}</span>
+										<span>{formatDate(interview.scheduled_start)}</span>
 										<span className='w-px h-3 bg-slate-200 dark:bg-slate-700 mx-1'></span>
 										<Clock className='h-3.5 w-3.5 text-orange-500' />
-										<span>
-											{new Date(interview.scheduled_start).toLocaleTimeString([], {
-												hour: '2-digit',
-												minute: '2-digit',
-											})}
-										</span>
+										<span>{formatTime(interview.scheduled_start)}</span>
 									</div>
 
 									<div className='flex items-center gap-2'>
@@ -286,8 +282,7 @@ export default function InterviewList() {
 									candidateName: editingInterview.candidate_name,
 									candidateEmail: editingInterview.candidate_email,
 									positionId: editingInterview.position_id,
-									date: new Date(editingInterview.scheduled_start).toISOString().split('T')[0],
-									time: new Date(editingInterview.scheduled_start).toTimeString().substring(0, 5),
+									...parseToLocalInputs(editingInterview.scheduled_start),
 									interviewerIds: editingInterview.interviewer_ids || [],
 							  }
 							: undefined

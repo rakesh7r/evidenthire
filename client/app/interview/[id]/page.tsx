@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import InterviewRoom from './room';
 import { createLocalAudioTrack, createLocalVideoTrack, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
 import { useRef } from 'react';
+import { formatDate, formatTime } from '@/utils/date';
 
 interface PublicInterview {
 	id: string;
@@ -219,8 +220,6 @@ export default function JoinInterviewPage() {
 		);
 	}
 
-	const scheduledDate = new Date(interview.scheduled_start);
-
 	return (
 		<div className='min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden'>
 			{/* Background Decorations */}
@@ -314,13 +313,11 @@ export default function JoinInterviewPage() {
 						<div className='grid grid-cols-2 gap-4 mt-2 pt-4 border-t border-white/10'>
 							<div className='flex items-center gap-3'>
 								<Calendar className='h-4 w-4 text-slate-500' />
-								<span className='text-sm text-slate-300'>{scheduledDate.toLocaleDateString()}</span>
+								<span className='text-sm text-slate-300'>{formatDate(interview.scheduled_start)}</span>
 							</div>
 							<div className='flex items-center gap-3'>
 								<Clock className='h-4 w-4 text-slate-500' />
-								<span className='text-sm text-slate-300'>
-									{scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-								</span>
+								<span className='text-sm text-slate-300'>{formatTime(interview.scheduled_start)}</span>
 							</div>
 						</div>
 					</div>
