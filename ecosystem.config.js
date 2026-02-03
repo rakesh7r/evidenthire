@@ -27,14 +27,15 @@ module.exports = {
                 NODE_ENV: 'preview',
             },
         },
-        // {
-        //     name: 'evident-client',
-        //     cwd: './client',
-        //     script: 'pnpm',
-        //     args: 'dev',
-        //     env: {
-        //         NODE_ENV: 'development',
-        //     },
-        // },
+        {
+            name: 'evident-client',
+            cwd: './client',
+            script: 'bun',
+            args: 'run start',
+            env: {
+                NODE_ENV: 'production',
+                PORT: 3001,
+            },
+        },
     ],
 };
