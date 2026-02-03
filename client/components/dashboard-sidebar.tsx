@@ -11,6 +11,8 @@ import {
 	Users,
 	ChevronLeft,
 	ChevronRight,
+	Briefcase,
+	ExternalLink,
 } from 'lucide-react';
 import { useState } from 'react';
 import { signOut } from '@/app/login/actions';
@@ -27,6 +29,7 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
 	const navigation = [
 		{ name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
 		{ name: 'Members', href: '/dashboard/members', icon: Users },
+		{ name: 'Job Board', href: '/careers/evidenthire', icon: Briefcase, external: true },
 	];
 
 	const isActive = (href: string) => {
@@ -71,11 +74,13 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
 				<nav className='space-y-1.5'>
 					{navigation.map((item) => {
 						const active = isActive(item.href);
+						const linkProps = item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
 						return (
 							<Link
 								key={item.name}
 								href={item.href}
 								title={isCollapsed ? item.name : ''}
+								{...linkProps}
 								className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
 									active
 										? 'bg-orange-600 text-white shadow-lg shadow-orange-500/20'
@@ -88,7 +93,12 @@ export default function DashboardSidebar({ user }: DashboardSidebarProps) {
 											: 'text-slate-400 dark:text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white'
 									}`}
 								/>
-								{!isCollapsed && <span className='truncate'>{item.name}</span>}
+								{!isCollapsed && (
+									<span className='truncate flex items-center gap-2'>
+										{item.name}
+										{item.external && <ExternalLink className='h-3 w-3 opacity-50' />}
+									</span>
+								)}
 							</Link>
 						);
 					})}
