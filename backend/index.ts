@@ -7,6 +7,7 @@ import featuresRoute from './routes/features';
 import positionRoute from './routes/position';
 import interviewRoute from './routes/interview';
 import webhookRoute from './routes/webhook';
+import { checkAndExpireInterviews, checkAndTimeoutInterviews } from './services/interview-access.service';
 
 import { logger } from 'hono/logger';
 
@@ -75,6 +76,29 @@ app.route('/api/v1', v1);
 
 const port = parseInt(process.env.PORT || '8000');
 console.log(`Server is running on port ${port}`);
+
+// Start background scheduler for interview lifecycle management
+const SCHEDULER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function runScheduledTasks() {
+	try {
+		const expiredResult = await checkAndExpireInterviews();
+		const timeoutResult = await checkAndTimeoutInterviews();
+
+		if (expiredResult.expiredCount > 0 || timeoutResult.timedOutCount > 0) {
+			console.log(
+				`Scheduler: Expired ${expiredResult.expiredCount} interviews, timed out ${timeoutResult.timedOutCount} interviews`
+			);
+		}
+	} catch (error) {
+		console.error('Error running scheduled tasks:', error);
+	}
+}
+
+// Run immediately on startup, then every 5 minutes
+runScheduledTasks();
+setInterval(runScheduledTasks, SCHEDULER_INTERVAL_MS);
+console.log('Interview lifecycle scheduler started (runs every 5 minutes)');
 
 export default {
 	port,

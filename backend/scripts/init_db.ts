@@ -89,12 +89,27 @@ export const createDatabaseTables = async () => {
               scheduled_start   timestamptz not null,
               scheduled_end     timestamptz,
               status            text check (
-                                  status in ('scheduled','in_progress','completed','cancelled')
-                                ),
+                                  status in ('scheduled','in_progress','completed','cancelled','no_show','expired')
+                                ) DEFAULT 'scheduled',
               evidence_state    text check (
                                   evidence_state in ('complete','partial','deleted')
                                 ) default 'complete',
               livekit_room_id   text,
+              -- New fields for lifecycle management
+              first_join_at     timestamptz,
+              last_activity_at  timestamptz,
+              actual_end_at     timestamptz,
+              ended_reason      text check (
+                                  ended_reason in ('normal','timeout','cancelled','no_show','interviewer_ended','technical_issue')
+                                ),
+              -- Waiting room support
+              waiting_room_enabled boolean DEFAULT true,
+              candidate_admitted boolean DEFAULT false,
+              candidate_waiting_since timestamptz,
+              -- Duration tracking
+              total_duration_ms integer,
+              -- Configuration (can be set per-interview, defaults set in code)
+              max_duration_minutes integer DEFAULT 120,
               created_at        timestamptz not null default now()
             )`;
 		console.log('Interview table created successfully');

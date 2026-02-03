@@ -16,12 +16,55 @@ import {
 	AlertCircle,
 	Trash2,
 	Video,
+	CheckCircle2,
+	XCircle,
+	AlertTriangle,
+	Play,
 } from 'lucide-react';
 import CreateInterviewModal, { SimpleUser } from './create-interview-modal';
 import { Position, UserRole } from '@/types/db';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { formatDate, formatTime, parseToLocalInputs } from '@/utils/date';
+
+// Status badge helper
+function getStatusBadge(status: string) {
+	switch (status) {
+		case 'completed':
+			return {
+				label: 'Completed',
+				icon: CheckCircle2,
+				className: 'bg-green-500/10 text-green-500 border-green-500/20',
+			};
+		case 'cancelled':
+			return {
+				label: 'Cancelled',
+				icon: XCircle,
+				className: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+			};
+		case 'no_show':
+			return {
+				label: 'No Show',
+				icon: AlertTriangle,
+				className: 'bg-red-500/10 text-red-500 border-red-500/20',
+			};
+		case 'expired':
+			return {
+				label: 'Expired',
+				icon: XCircle,
+				className: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+			};
+		case 'in_progress':
+			return {
+				label: 'In Progress',
+				icon: Play,
+				className: 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse',
+			};
+		case 'scheduled':
+		default:
+			return null; // No badge for scheduled
+	}
+}
 
 interface Interview {
 	id: string;
@@ -204,7 +247,23 @@ export default function InterviewList() {
 										<User className='h-5 w-5' />
 									</div>
 									<div>
-										<h4 className='font-medium text-slate-900 dark:text-white'>{interview.candidate_name}</h4>
+										<div className='flex items-center gap-2'>
+											<h4 className='font-medium text-slate-900 dark:text-white'>{interview.candidate_name}</h4>
+											{(() => {
+												const badge = getStatusBadge(interview.status);
+												if (badge) {
+													const Icon = badge.icon;
+													return (
+														<span
+															className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${badge.className}`}>
+															<Icon className='h-3 w-3' />
+															{badge.label}
+														</span>
+													);
+												}
+												return null;
+											})()}
+										</div>
 										<p className='text-sm text-slate-500 dark:text-slate-400'>{interview.candidate_email}</p>
 										<div className='mt-1 flex items-center gap-4 text-xs text-slate-500'>
 											<span className='flex items-center gap-1.5'>
@@ -231,20 +290,26 @@ export default function InterviewList() {
 									</div>
 
 									<div className='flex items-center gap-2'>
-										<Link
-											href={`/interview/${interview.id}?isInterviewer=true`}
-											target='_blank'
-											className='mr-2 inline-flex items-center gap-1.5 rounded-md bg-green-600/10 px-2.5 py-1.5 text-xs font-medium text-green-500 border border-green-600/20 hover:bg-green-600/20 transition-colors'
-											title='Join Interview Lobby'>
-											<Video className='h-3.5 w-3.5' />
-											Join Lobby
-										</Link>
-										<button
-											onClick={() => handleResendEmail(interview.id, interview.candidate_email)}
-											className='p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors'
-											title='Resend Invitation Email'>
-											<Send className='h-4 w-4' />
-										</button>
+										{/* Only show Join Lobby for scheduled or in_progress interviews */}
+										{['scheduled', 'in_progress'].includes(interview.status) && (
+											<Link
+												href={`/interview/${interview.id}?isInterviewer=true`}
+												target='_blank'
+												className='mr-2 inline-flex items-center gap-1.5 rounded-md bg-green-600/10 px-2.5 py-1.5 text-xs font-medium text-green-500 border border-green-600/20 hover:bg-green-600/20 transition-colors'
+												title='Join Interview Lobby'>
+												<Video className='h-3.5 w-3.5' />
+												{interview.status === 'in_progress' ? 'Join Now' : 'Join Lobby'}
+											</Link>
+										)}
+										{/* Only show resend for scheduled interviews */}
+										{interview.status === 'scheduled' && (
+											<button
+												onClick={() => handleResendEmail(interview.id, interview.candidate_email)}
+												className='p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors'
+												title='Resend Invitation Email'>
+												<Send className='h-4 w-4' />
+											</button>
+										)}
 										{['admin', 'recruiter'].includes(userRole) && (
 											<>
 												<button

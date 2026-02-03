@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
 	Video,
 	Mic,
 	MicOff,
 	VideoOff,
 	Settings,
-	User,
 	Briefcase,
 	Building2,
 	Clock,
@@ -16,6 +15,9 @@ import {
 	Loader2,
 	AlertCircle,
 	ArrowRight,
+	XCircle,
+	Timer,
+	UserCheck,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -24,6 +26,27 @@ import { createLocalAudioTrack, createLocalVideoTrack, LocalAudioTrack, LocalVid
 import { useRef } from 'react';
 import { formatDate, formatTime } from '@/utils/date';
 
+interface AccessConfig {
+	earlyJoinMinutes: number;
+	lateGraceMinutes: number;
+}
+
+interface StatusSummary {
+	status: string;
+	canJoin: boolean;
+	message: string;
+	waitingRoom?: {
+		candidateWaiting: boolean;
+		waitingSince: string | null;
+	};
+	timing?: {
+		scheduledStart: string;
+		joinWindowStart: string;
+		expiryTime: string;
+		durationMs: number | null;
+	};
+}
+
 interface PublicInterview {
 	id: string;
 	candidate_name: string;
@@ -31,21 +54,33 @@ interface PublicInterview {
 	organization_name: string;
 	scheduled_start: string;
 	status: string;
+	accessConfig?: AccessConfig;
+	statusSummary?: StatusSummary;
 }
+
+type AccessStatus = 'loading' | 'too_early' | 'allowed' | 'waiting_room' | 'expired' | 'completed' | 'cancelled';
 
 export default function JoinInterviewPage() {
 	const { id } = useParams();
-	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [interview, setInterview] = useState<PublicInterview | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+
+	// Access control states
+	const [accessStatus, setAccessStatus] = useState<AccessStatus>('loading');
+	const [accessMessage, setAccessMessage] = useState<string>('');
+	const [joinWindowStart, setJoinWindowStart] = useState<Date | null>(null);
+	const [timeUntilOpen, setTimeUntilOpen] = useState<string>('');
+	const [isWaitingRoom, setIsWaitingRoom] = useState(false);
+	const [isPollingWaitingRoom, setIsPollingWaitingRoom] = useState(false);
 
 	// Media states
 	const [isMicOn, setIsMicOn] = useState(true);
 	const [isVideoOn, setIsVideoOn] = useState(true);
 	const [token, setToken] = useState<string | null>(null);
 	const [isJoined, setIsJoined] = useState(false);
+	const [isJoining, setIsJoining] = useState(false);
 
 	// Local tracks for preview
 	const [localVideoTrack, setLocalVideoTrack] = useState<LocalVideoTrack | null>(null);
@@ -53,7 +88,9 @@ export default function JoinInterviewPage() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 
 	const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+	const isInterviewer = searchParams.get('isInterviewer') === 'true';
 
+	// Fetch interview details
 	useEffect(() => {
 		if (!id) return;
 
@@ -61,6 +98,15 @@ export default function JoinInterviewPage() {
 			try {
 				const res = await api.get(`/interviews/public/${id}`);
 				setInterview(res.data);
+
+				// Check status from response
+				const statusSummary = res.data.statusSummary;
+				if (statusSummary) {
+					updateAccessStatus(statusSummary, res.data.accessConfig);
+				} else {
+					setAccessStatus('allowed');
+				}
+
 				setError(null);
 			} catch (err: any) {
 				console.error('Failed to fetch interview:', err);
@@ -72,6 +118,100 @@ export default function JoinInterviewPage() {
 
 		fetchInterview();
 	}, [id]);
+
+	// Update access status based on server response
+	const updateAccessStatus = (statusSummary: StatusSummary, accessConfig?: AccessConfig) => {
+		switch (statusSummary.status) {
+			case 'completed':
+				setAccessStatus('completed');
+				setAccessMessage('This interview has already ended.');
+				break;
+			case 'cancelled':
+				setAccessStatus('cancelled');
+				setAccessMessage('This interview has been cancelled.');
+				break;
+			case 'no_show':
+			case 'expired':
+				setAccessStatus('expired');
+				setAccessMessage('This interview has expired. No participants joined within the allowed time window.');
+				break;
+			default:
+				if (!statusSummary.canJoin && statusSummary.timing) {
+					// Check if too early
+					const now = new Date();
+					const windowStart = new Date(statusSummary.timing.joinWindowStart);
+					if (now < windowStart) {
+						setAccessStatus('too_early');
+						setJoinWindowStart(windowStart);
+						setAccessMessage(
+							`The interview lobby opens ${accessConfig?.earlyJoinMinutes || 30} minutes before the scheduled time.`
+						);
+					} else {
+						setAccessStatus('allowed');
+					}
+				} else {
+					setAccessStatus('allowed');
+				}
+		}
+	};
+
+	// Countdown timer for "too early" status
+	useEffect(() => {
+		if (accessStatus !== 'too_early' || !joinWindowStart) return;
+
+		const updateCountdown = () => {
+			const now = new Date();
+			const diff = joinWindowStart.getTime() - now.getTime();
+
+			if (diff <= 0) {
+				setAccessStatus('allowed');
+				setTimeUntilOpen('');
+				return;
+			}
+
+			const hours = Math.floor(diff / 3600000);
+			const minutes = Math.floor((diff % 3600000) / 60000);
+			const seconds = Math.floor((diff % 60000) / 1000);
+
+			if (hours > 0) {
+				setTimeUntilOpen(`${hours}h ${minutes}m ${seconds}s`);
+			} else if (minutes > 0) {
+				setTimeUntilOpen(`${minutes}m ${seconds}s`);
+			} else {
+				setTimeUntilOpen(`${seconds}s`);
+			}
+		};
+
+		updateCountdown();
+		const interval = setInterval(updateCountdown, 1000);
+
+		return () => clearInterval(interval);
+	}, [accessStatus, joinWindowStart]);
+
+	// Poll for waiting room admission (candidates only)
+	const pollWaitingRoom = useCallback(async () => {
+		if (!id || !isWaitingRoom) return;
+
+		try {
+			const res = await api.get(`/interviews/public/${id}/waiting-status`);
+			if (res.data.isAdmitted) {
+				setIsWaitingRoom(false);
+				setIsPollingWaitingRoom(false);
+				toast.success('You have been admitted! Joining the interview...');
+				// Retry join after admission
+				handleJoin();
+			}
+		} catch (err) {
+			console.error('Error polling waiting room:', err);
+		}
+	}, [id, isWaitingRoom]);
+
+	useEffect(() => {
+		if (!isWaitingRoom || !isPollingWaitingRoom) return;
+
+		const interval = setInterval(pollWaitingRoom, 3000); // Poll every 3 seconds
+		return () => clearInterval(interval);
+	}, [isWaitingRoom, isPollingWaitingRoom, pollWaitingRoom]);
 
 	// Initialize local tracks
 	useEffect(() => {
@@ -92,19 +232,18 @@ export default function JoinInterviewPage() {
 			}
 		}
 
-		if (!isJoined && !isLoading && interview) {
+		if (!isJoined && !isLoading && interview && accessStatus === 'allowed') {
 			initTracks();
 		}
 
 		return () => {
-			// Cleanup tracks on unmount or join
 			if (!isJoined) {
 				localVideoTrack?.stop();
 				localAudioTrack?.stop();
 			}
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isLoading, isJoined]);
+	}, [isLoading, isJoined, accessStatus]);
 
 	// Attach video to element
 	useEffect(() => {
@@ -134,9 +273,9 @@ export default function JoinInterviewPage() {
 		if (localVideoTrack) {
 			const newState = !isVideoOn;
 			if (newState) {
-				await localVideoTrack.unmute(); // or restart
+				await localVideoTrack.unmute();
 			} else {
-				await localVideoTrack.mute(); // or stop, but mute keeps the track object
+				await localVideoTrack.mute();
 			}
 			setIsVideoOn(newState);
 		}
@@ -144,17 +283,12 @@ export default function JoinInterviewPage() {
 
 	const handleJoin = async () => {
 		if (!interview || !id) return;
-		setIsLoading(true);
+		setIsJoining(true);
 
 		try {
-			// For simplicity, we'll use a random name for now or the candidate name if we can infer it logic-wise.
-			// Ideally, we'd prompt for a name if it's a guest, or use user details if logged in.
-			// Here we simply use "Participant" + suffix if not logged in, but for actual demo we use candidate name
 			const participantName = interview.candidate_name || 'Guest User';
 			const identity = `user-${Math.random().toString(36).substr(2, 9)}`;
 
-			// Get auth params from URL if present
-			// Get auth params from URL if present
 			const email = searchParams.get('email');
 			const candidateAccessKey = searchParams.get('candidate_access_key');
 
@@ -167,13 +301,51 @@ export default function JoinInterviewPage() {
 				},
 			});
 
+			// Check if put in waiting room
+			if (res.data.waitingRoom) {
+				setIsWaitingRoom(true);
+				setIsPollingWaitingRoom(true);
+				toast.info(res.data.message || 'Waiting for the interviewer to admit you...');
+				setIsJoining(false);
+				return;
+			}
+
 			setToken(res.data.token);
 			setIsJoined(true);
 		} catch (err: any) {
 			console.error('Failed to get token:', err);
-			toast.error('Failed to join the room. Please try again.');
+
+			// Handle specific error codes
+			if (err.response?.data?.code) {
+				switch (err.response.data.code) {
+					case 'TOO_EARLY':
+						setAccessStatus('too_early');
+						if (err.response.data.joinWindowStart) {
+							setJoinWindowStart(new Date(err.response.data.joinWindowStart));
+						}
+						setAccessMessage(err.response.data.error);
+						break;
+					case 'INTERVIEW_EXPIRED':
+					case 'INTERVIEW_NO_SHOW':
+						setAccessStatus('expired');
+						setAccessMessage(err.response.data.error);
+						break;
+					case 'INTERVIEW_COMPLETED':
+						setAccessStatus('completed');
+						setAccessMessage(err.response.data.error);
+						break;
+					case 'INTERVIEW_CANCELLED':
+						setAccessStatus('cancelled');
+						setAccessMessage(err.response.data.error);
+						break;
+					default:
+						toast.error(err.response?.data?.error || 'Failed to join the room. Please try again.');
+				}
+			} else {
+				toast.error(err.response?.data?.error || 'Failed to join the room. Please try again.');
+			}
 		} finally {
-			setIsLoading(false);
+			setIsJoining(false);
 		}
 	};
 
@@ -183,6 +355,7 @@ export default function JoinInterviewPage() {
 		toast.info('You have left the interview.');
 	};
 
+	// Render joined state
 	if (isJoined && token && LIVEKIT_URL) {
 		return (
 			<InterviewRoom
@@ -191,10 +364,13 @@ export default function JoinInterviewPage() {
 				onLeave={handleLeave}
 				micEnabled={isMicOn}
 				camEnabled={isVideoOn}
+				interviewId={id as string}
+				isInterviewer={isInterviewer}
 			/>
 		);
 	}
 
+	// Render loading state
 	if (isLoading) {
 		return (
 			<div className='min-h-screen bg-slate-950 flex flex-col items-center justify-center'>
@@ -204,6 +380,7 @@ export default function JoinInterviewPage() {
 		);
 	}
 
+	// Render error state
 	if (error || !interview) {
 		return (
 			<div className='min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4'>
@@ -220,6 +397,130 @@ export default function JoinInterviewPage() {
 		);
 	}
 
+	// Render access denied states
+	if (accessStatus === 'expired' || accessStatus === 'completed' || accessStatus === 'cancelled') {
+		const icons = {
+			expired: XCircle,
+			completed: UserCheck,
+			cancelled: XCircle,
+		};
+		const colors = {
+			expired: 'red',
+			completed: 'blue',
+			cancelled: 'yellow',
+		};
+		const Icon = icons[accessStatus];
+		const color = colors[accessStatus];
+
+		return (
+			<div className='min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4'>
+				<div className='max-w-md w-full text-center space-y-6'>
+					<div
+						className={`mx-auto h-20 w-20 rounded-full bg-${color}-500/10 flex items-center justify-center border border-${color}-500/20`}>
+						<Icon className={`h-10 w-10 text-${color}-500`} />
+					</div>
+					<div className='space-y-2'>
+						<h1 className='text-2xl font-bold text-white'>
+							{accessStatus === 'completed'
+								? 'Interview Completed'
+								: accessStatus === 'cancelled'
+								? 'Interview Cancelled'
+								: 'Interview Expired'}
+						</h1>
+						<p className='text-slate-400'>{accessMessage}</p>
+					</div>
+					{/* Show interview details */}
+					<div className='mt-6 p-4 rounded-xl bg-white/5 border border-white/10'>
+						<div className='flex items-center gap-3 text-sm text-slate-400'>
+							<Briefcase className='h-4 w-4' />
+							<span>{interview.position_title}</span>
+						</div>
+						<div className='flex items-center gap-3 text-sm text-slate-400 mt-2'>
+							<Calendar className='h-4 w-4' />
+							<span>{formatDate(interview.scheduled_start)}</span>
+							<Clock className='h-4 w-4 ml-2' />
+							<span>{formatTime(interview.scheduled_start)}</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// Render "too early" state
+	if (accessStatus === 'too_early') {
+		return (
+			<div className='min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4'>
+				<div className='max-w-md w-full text-center space-y-6'>
+					<div className='mx-auto h-20 w-20 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20'>
+						<Timer className='h-10 w-10 text-orange-500' />
+					</div>
+					<div className='space-y-2'>
+						<h1 className='text-2xl font-bold text-white'>You're early!</h1>
+						<p className='text-slate-400'>{accessMessage}</p>
+					</div>
+					{/* Countdown */}
+					{timeUntilOpen && (
+						<div className='mt-6 p-6 rounded-xl bg-white/5 border border-white/10'>
+							<p className='text-sm text-slate-500 mb-2'>Lobby opens in</p>
+							<p className='text-4xl font-bold text-orange-500 font-mono'>{timeUntilOpen}</p>
+						</div>
+					)}
+					{/* Interview details */}
+					<div className='mt-4 p-4 rounded-xl bg-white/5 border border-white/10'>
+						<div className='flex items-center justify-center gap-3 text-sm text-slate-400'>
+							<Briefcase className='h-4 w-4' />
+							<span>{interview.position_title}</span>
+						</div>
+						<div className='flex items-center justify-center gap-3 text-sm text-slate-400 mt-2'>
+							<Calendar className='h-4 w-4' />
+							<span>{formatDate(interview.scheduled_start)}</span>
+							<Clock className='h-4 w-4 ml-2' />
+							<span>{formatTime(interview.scheduled_start)}</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// Render waiting room state
+	if (isWaitingRoom) {
+		return (
+			<div className='min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4'>
+				<div className='max-w-md w-full text-center space-y-6'>
+					<div className='mx-auto h-20 w-20 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20'>
+						<Loader2 className='h-10 w-10 text-blue-500 animate-spin' />
+					</div>
+					<div className='space-y-2'>
+						<h1 className='text-2xl font-bold text-white'>Waiting Room</h1>
+						<p className='text-slate-400'>Please wait for the interviewer to admit you to the interview.</p>
+					</div>
+					{/* Pulse animation */}
+					<div className='flex justify-center mt-6'>
+						<div className='flex items-center gap-2'>
+							<span className='h-2 w-2 rounded-full bg-blue-500 animate-pulse' />
+							<span className='h-2 w-2 rounded-full bg-blue-500 animate-pulse delay-100' />
+							<span className='h-2 w-2 rounded-full bg-blue-500 animate-pulse delay-200' />
+						</div>
+					</div>
+					{/* Interview details */}
+					<div className='mt-4 p-4 rounded-xl bg-white/5 border border-white/10'>
+						<div className='flex items-center justify-center gap-3 text-sm text-slate-400'>
+							<Briefcase className='h-4 w-4' />
+							<span>{interview.position_title}</span>
+						</div>
+						<div className='flex items-center justify-center gap-3 text-sm text-slate-400 mt-2'>
+							<Building2 className='h-4 w-4' />
+							<span>{interview.organization_name}</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	// Render main lobby
 	return (
 		<div className='min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden'>
 			{/* Background Decorations */}
@@ -324,9 +625,19 @@ export default function JoinInterviewPage() {
 
 					<button
 						onClick={handleJoin}
-						className='w-full h-16 group relative flex items-center justify-center gap-3 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-lg shadow-[0_0_40px_-10px_rgba(249,115,22,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]'>
-						Join Interview Room
-						<ArrowRight className='h-5 w-5 transition-transform group-hover:translate-x-1' />
+						disabled={isJoining}
+						className='w-full h-16 group relative flex items-center justify-center gap-3 rounded-2xl bg-orange-600 hover:bg-orange-500 disabled:bg-orange-600/50 disabled:cursor-not-allowed text-white font-bold text-lg shadow-[0_0_40px_-10px_rgba(249,115,22,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]'>
+						{isJoining ? (
+							<>
+								<Loader2 className='h-5 w-5 animate-spin' />
+								Joining...
+							</>
+						) : (
+							<>
+								Join Interview Room
+								<ArrowRight className='h-5 w-5 transition-transform group-hover:translate-x-1' />
+							</>
+						)}
 					</button>
 
 					<p className='text-center text-xs text-slate-500'>

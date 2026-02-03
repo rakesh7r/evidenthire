@@ -7,6 +7,7 @@ import {
 	getLastSessionId,
 	getLastSessionRecord,
 } from '../services/livekit.service';
+import { endInterview } from '../services/interview-access.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
 const webhook = new Hono();
@@ -94,6 +95,13 @@ webhook.post('/', async (c) => {
 
 				// Invalidate session cache so next session gets a new ID (this is now async)
 				await invalidateSessionCache(interviewId);
+
+				// Auto-end the interview if it wasn't manually ended by the interviewer
+				// This is a normal room finish, so participants left
+				const endResult = await endInterview(interviewId, 'normal');
+				if (endResult.success) {
+					console.log(`Interview ${interviewId} auto-ended with status: ${endResult.status}`);
+				}
 				break;
 		}
 
