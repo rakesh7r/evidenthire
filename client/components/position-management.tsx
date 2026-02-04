@@ -212,7 +212,7 @@ export default function PositionManagement() {
 						editingPosition
 							? {
 									...editingPosition,
-									description: '', // Not in DB yet, but required by form
+									job_description: editingPosition.job_description || '',
 									rounds: editingPosition.rounds || [],
 									requirements: editingPosition.requirements!, // Non-null assertion for now or handle appropriately
 							  }

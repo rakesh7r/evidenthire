@@ -26,6 +26,17 @@ const mockPositions = [
 		location: 'Remote',
 		type: 'Full-time',
 		description: 'Build next-generation user interfaces with React, TypeScript, and modern web technologies.',
+		job_description: `We are looking for a Senior Frontend Engineer to join our team.
+
+**Responsibilities:**
+- Build scalable and reusable components
+- Collaborate with design and product teams
+- Optimize application for maximum speed and scalability
+
+**Requirements:**
+- 5+ years of experience with React
+- Strong understanding of TypeScript
+- Experience with modern build tools`,
 		requirements: {
 			skills: [
 				{ name: 'React', level: 'senior' },
@@ -122,6 +133,7 @@ interface Position {
 	location: string;
 	type: string;
 	description: string;
+	job_description?: string;
 	requirements: {
 		skills: { name: string; level: string }[];
 	};
@@ -179,7 +191,7 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 			<nav className='sticky top-0 z-50 w-full border-b border-white/10 bg-slate-900/95 backdrop-blur-md'>
 				<div className='mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
 					<div className='flex items-center gap-2'>
-						<div className='flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/20'>
+						<div className='flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/20'>
 							<Bot className='h-5 w-5 text-white' />
 						</div>
 						<span className='text-xl font-bold tracking-tight text-white'>{mockOrganization.name}</span>
@@ -216,7 +228,7 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 
 					<h1 className='mx-auto max-w-4xl text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl'>
 						Join Us in Building the{' '}
-						<span className='text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500'>
+						<span className='text-transparent bg-clip-text bg-linear-to-r from-orange-400 via-pink-500 to-purple-500'>
 							Future of Hiring
 						</span>
 					</h1>
@@ -373,10 +385,10 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 									</div>
 
 									{/* Apply Button */}
-									<div className='flex-shrink-0'>
+									<div className='shrink-0'>
 										<button
 											onClick={() => handleApply(position)}
-											className='group/btn inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 hover:scale-105 active:scale-100'>
+											className='group/btn inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-orange-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-orange-500/40 hover:scale-105 active:scale-100'>
 											Apply Now
 											<ChevronRight className='h-4 w-4 transition-transform group-hover/btn:translate-x-0.5' />
 										</button>

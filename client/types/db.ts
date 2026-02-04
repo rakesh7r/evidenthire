@@ -73,6 +73,7 @@ export interface Position {
 	requirements?: RequirementsSchema | null; // JSONB
 	rounds?: Round[] | null; // JSONB
 	status: PositionStatus;
+	job_description?: string | null;
 	created_at: string; // ISO Date string
 }
 
