@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, X, Briefcase, FileText, CheckCircle, Tag, Sliders, Brain } from 'lucide-react';
+import { Plus, X, Briefcase, FileText, CheckCircle, Tag, Sliders, Brain, Send, Sparkles } from 'lucide-react';
 
 interface PositionFormProps {
 	onClose: () => void;
@@ -21,6 +21,7 @@ export interface RequirementsSchema {
 // Current DB schema is just JSONB, but we will serialize this structure into it.
 export interface PositionFormData {
 	title: string;
+	description: string;
 	requirements: RequirementsSchema;
 	rounds: Round[];
 	status: 'open' | 'closed';
@@ -38,6 +39,11 @@ const INTERVIEW_TYPES_OPTIONS = [
 export default function AddPositionModal({ onClose, onSubmit, initialData }: PositionFormProps) {
 	const [title, setTitle] = useState(initialData?.title || '');
 	const [status, setStatus] = useState<'open' | 'closed'>(initialData?.status || 'open');
+	const [description, setDescription] = useState(initialData?.description || '');
+
+	// AI Job Description State
+	const [aiPrompt, setAiPrompt] = useState('');
+	const [isGenerating, setIsGenerating] = useState(false);
 
 	// Requirements State
 	const [skills, setSkills] = useState<SkillRequirement[]>(initialData?.requirements.skills || []);
@@ -57,6 +63,21 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 			depth: 0.3,
 		}
 	);
+
+	// Placeholder AI generation handler (UI only, backend not implemented)
+	const handleGenerateDescription = () => {
+		if (!aiPrompt.trim()) return;
+		setIsGenerating(true);
+		// TODO: Implement backend AI call
+		// For now, just simulate a delay and show a placeholder
+		setTimeout(() => {
+			setDescription(
+				`[AI Generated Job Description based on: "${aiPrompt}"]\n\nThis is a placeholder. Connect to an AI backend to generate real job descriptions.`
+			);
+			setIsGenerating(false);
+			setAiPrompt('');
+		}, 1000);
+	};
 
 	const handleAddSkill = () => {
 		if (newSkillName.trim()) {
@@ -100,6 +121,7 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 		if (e) e.preventDefault();
 		onSubmit({
 			title,
+			description,
 			requirements: {
 				skills,
 				evaluation_weights: weights,
@@ -112,7 +134,7 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 
 	return (
 		<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200'>
-			<div className='w-full max-w-2xl overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col'>
+			<div className='w-full max-w-6xl overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col'>
 				<div className='relative border-b border-slate-200 dark:border-slate-800 p-6 shrink-0'>
 					<h3 className='text-xl font-semibold text-slate-900 dark:text-white'>
 						{initialData ? 'Edit Position' : 'Create New Position'}
@@ -127,245 +149,309 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 					</button>
 				</div>
 
-				<form
-					onSubmit={handleSubmit}
-					className='p-6 space-y-8 overflow-y-auto'>
-					{/* Basic Info */}
-					<div className='space-y-4'>
-						<h4 className='text-sm font-semibold text-orange-500 uppercase tracking-wider'>Role Details</h4>
-						<div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-							<div className='space-y-2'>
-								<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Job Title</label>
-								<div className='relative'>
-									<Briefcase className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500' />
-									<input
-										type='text'
-										required
-										value={title}
-										onChange={(e) => setTitle(e.target.value)}
-										className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
-										placeholder='e.g., Stafr Engineer'
-									/>
-								</div>
-							</div>
-
-							<div className='space-y-2'>
-								<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Status</label>
-								<div className='flex gap-2 rounded-lg bg-slate-50 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700'>
-									{['open', 'closed'].map((s) => (
-										<button
-											key={s}
-											type='button'
-											onClick={() => setStatus(s as any)}
-											className={`flex-1 rounded-md py-1.5 text-xs font-medium capitalize transition-all ${
-												status === s
-													? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-													: 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
-											}`}>
-											{s}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-					</div>
-
-					{/* Skills */}
-					<div className='space-y-4'>
-						<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
-							<Brain className='h-4 w-4' /> Skills Requirements
-						</h4>
-						<div className='bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50 space-y-4'>
-							<div className='flex gap-2 items-end'>
-								<div className='flex-1 space-y-1'>
-									<label className='text-xs text-slate-500 dark:text-slate-400'>Skill Name</label>
-									<input
-										type='text'
-										value={newSkillName}
-										onChange={(e) => setNewSkillName(e.target.value)}
-										onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
-										className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
-										placeholder='e.g. React'
-									/>
-								</div>
-								<div className='w-1/3 space-y-1'>
-									<label className='text-xs text-slate-500 dark:text-slate-400'>Level</label>
-									<select
-										value={newSkillLevel}
-										onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
-										className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none'>
-										<option value='basic'>Basic</option>
-										<option value='intermediate'>Intermediate</option>
-										<option value='senior'>Senior</option>
-									</select>
-								</div>
-								<button
-									type='button'
-									onClick={handleAddSkill}
-									className='rounded-lg bg-slate-100 dark:bg-slate-700 px-3 py-2 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600'>
-									<Plus className='h-5 w-5' />
-								</button>
-							</div>
-
-							<div className='flex flex-wrap gap-2 min-h-[40px]'>
-								{skills.map((skill, index) => (
-									<div
-										key={index}
-										className='inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5'>
-										<span className='text-sm font-medium text-slate-700 dark:text-slate-200'>{skill.name}</span>
-										<span
-											className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${
-												skill.level === 'senior'
-													? 'bg-purple-500/10 text-purple-400'
-													: skill.level === 'intermediate'
-													? 'bg-blue-500/10 text-blue-400'
-													: 'bg-green-500/10 text-green-400'
-											}`}>
-											{skill.level}
-										</span>
-										<button
-											type='button'
-											onClick={() => removeSkill(index)}
-											className='ml-1 text-slate-500 hover:text-red-400'>
-											<X className='h-3 w-3' />
-										</button>
+				<div className='flex-1 overflow-y-auto'>
+					<div className='grid grid-cols-1 lg:grid-cols-2 gap-0'>
+						{/* Left Column - Role Configuration */}
+						<form
+							onSubmit={handleSubmit}
+							className='p-6 space-y-8 border-r border-slate-200 dark:border-slate-800'>
+							{/* Basic Info */}
+							<div className='space-y-4'>
+								<h4 className='text-sm font-semibold text-orange-500 uppercase tracking-wider'>Role Details</h4>
+								<div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+									<div className='space-y-2'>
+										<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Job Title</label>
+										<div className='relative'>
+											<Briefcase className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500' />
+											<input
+												type='text'
+												required
+												value={title}
+												onChange={(e) => setTitle(e.target.value)}
+												className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
+												placeholder='e.g., Stafr Engineer'
+											/>
+										</div>
 									</div>
-								))}
-								{skills.length === 0 && (
-									<span className='text-sm text-slate-500 italic py-1'>No skills added yet.</span>
-								)}
-							</div>
-						</div>
-					</div>
 
-					<div className='grid grid-cols-1 md:grid-cols-2 gap-8'>
-						{/* Interview Rounds */}
-						<div className='space-y-4'>
-							<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
-								<FileText className='h-4 w-4' /> Interview Rounds
-							</h4>
-
-							{/* Add Round Form */}
-							<div className='bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50 space-y-3'>
-								<div>
-									<label className='text-xs text-slate-500 dark:text-slate-400'>Round Title</label>
-									<input
-										type='text'
-										value={newRoundTitle}
-										onChange={(e) => setNewRoundTitle(e.target.value)}
-										className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm'
-										placeholder='e.g. Initial Screening'
-									/>
-								</div>
-								<div className='flex gap-2'>
-									<div className='flex-1'>
-										<label className='text-xs text-slate-500 dark:text-slate-400'>Type</label>
-										<select
-											value={newRoundType}
-											onChange={(e) => setNewRoundType(e.target.value)}
-											className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm capitalize'>
-											{INTERVIEW_TYPES_OPTIONS.map((t) => (
-												<option
-													key={t}
-													value={t}>
-													{t.replace('_', ' ')}
-												</option>
+									<div className='space-y-2'>
+										<label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Status</label>
+										<div className='flex gap-2 rounded-lg bg-slate-50 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700'>
+											{['open', 'closed'].map((s) => (
+												<button
+													key={s}
+													type='button'
+													onClick={() => setStatus(s as any)}
+													className={`flex-1 rounded-md py-1.5 text-xs font-medium capitalize transition-all ${
+														status === s
+															? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+															: 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300'
+													}`}>
+													{s}
+												</button>
 											))}
-										</select>
-									</div>
-									<div className='w-24'>
-										<label className='text-xs text-slate-500 dark:text-slate-400'>Duration (m)</label>
-										<input
-											type='number'
-											min='15'
-											step='15'
-											value={newRoundDuration}
-											onChange={(e) => setNewRoundDuration(parseInt(e.target.value))}
-											className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm'
-										/>
+										</div>
 									</div>
 								</div>
-								<button
-									type='button'
-									onClick={handleAddRound}
-									className='w-full rounded-lg bg-orange-600 px-3 py-2 text-white hover:bg-orange-500 text-sm font-medium'>
-									Add Round
-								</button>
 							</div>
 
-							{/* Rounds List */}
-							<div className='space-y-2'>
-								{rounds.length === 0 ? (
-									<p className='text-sm text-slate-500 italic text-center py-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg'>
-										No rounds defined. Add a round to start.
-									</p>
-								) : (
-									rounds.map((round, index) => (
-										<div
-											key={index}
-											className='flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'>
-											<div>
-												<div className='font-medium text-slate-900 dark:text-white'>{round.title}</div>
-												<div className='text-xs text-slate-500 flex gap-2'>
-													<span className='capitalize'>{round.type.replace('_', ' ')}</span>
-													<span>•</span>
-													<span>{round.duration_minutes} min</span>
-												</div>
-											</div>
-											<button
-												type='button'
-												onClick={() => removeRound(index)}
-												className='p-1 text-slate-400 hover:text-red-500'>
-												<X className='h-4 w-4' />
-											</button>
+							{/* Skills */}
+							<div className='space-y-4'>
+								<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
+									<Brain className='h-4 w-4' /> Skills Requirements
+								</h4>
+								<div className='bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50 space-y-4'>
+									<div className='flex gap-2 items-end'>
+										<div className='flex-1 space-y-1'>
+											<label className='text-xs text-slate-500 dark:text-slate-400'>Skill Name</label>
+											<input
+												type='text'
+												value={newSkillName}
+												onChange={(e) => setNewSkillName(e.target.value)}
+												onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())}
+												className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500'
+												placeholder='e.g. React'
+											/>
 										</div>
-									))
-								)}
-							</div>
-						</div>
-
-						{/* Evaluation Weights */}
-						<div className='space-y-4'>
-							<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
-								<Sliders className='h-4 w-4' /> Weights
-							</h4>
-							<div className='space-y-5 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50'>
-								{(Object.keys(weights) as Array<keyof EvaluationWeights>).map((key) => (
-									<div
-										key={key}
-										className='space-y-2'>
-										<div className='flex justify-between text-sm'>
-											<span className='capitalize text-slate-600 dark:text-slate-300'>{key.replace('_', ' ')}</span>
-											<span className='font-mono font-bold text-orange-600 dark:text-orange-400'>{weights[key]}</span>
+										<div className='w-1/3 space-y-1'>
+											<label className='text-xs text-slate-500 dark:text-slate-400'>Level</label>
+											<select
+												value={newSkillLevel}
+												onChange={(e) => setNewSkillLevel(e.target.value as SkillLevel)}
+												className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none'>
+												<option value='basic'>Basic</option>
+												<option value='intermediate'>Intermediate</option>
+												<option value='senior'>Senior</option>
+											</select>
 										</div>
-										<input
-											type='range'
-											min='0'
-											max='1'
-											step='0.1'
-											value={weights[key]}
-											onChange={(e) => handleWeightChange(key, parseFloat(e.target.value))}
-											className='h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-orange-600 dark:accent-orange-500'
-										/>
+										<button
+											type='button'
+											onClick={handleAddSkill}
+											className='rounded-lg bg-slate-100 dark:bg-slate-700 px-3 py-2 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600'>
+											<Plus className='h-5 w-5' />
+										</button>
 									</div>
-								))}
-								<div className='pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center'>
-									<span className='text-xs text-slate-500 dark:text-slate-400'>Total Weight</span>
-									<span
-										className={`text-sm font-bold ${
-											Math.abs(Object.values(weights).reduce((a, b) => a + b, 0) - 1.0) < 0.01
-												? 'text-emerald-600 dark:text-emerald-400'
-												: 'text-red-600 dark:text-red-400'
-										}`}>
-										{Object.values(weights)
-											.reduce((a, b) => a + b, 0)
-											.toFixed(1)}
-									</span>
+
+									<div className='flex flex-wrap gap-2 min-h-[40px]'>
+										{skills.map((skill, index) => (
+											<div
+												key={index}
+												className='inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5'>
+												<span className='text-sm font-medium text-slate-700 dark:text-slate-200'>{skill.name}</span>
+												<span
+													className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${
+														skill.level === 'senior'
+															? 'bg-purple-500/10 text-purple-400'
+															: skill.level === 'intermediate'
+															? 'bg-blue-500/10 text-blue-400'
+															: 'bg-green-500/10 text-green-400'
+													}`}>
+													{skill.level}
+												</span>
+												<button
+													type='button'
+													onClick={() => removeSkill(index)}
+													className='ml-1 text-slate-500 hover:text-red-400'>
+													<X className='h-3 w-3' />
+												</button>
+											</div>
+										))}
+										{skills.length === 0 && (
+											<span className='text-sm text-slate-500 italic py-1'>No skills added yet.</span>
+										)}
+									</div>
+								</div>
+							</div>
+
+							<div className='grid grid-cols-1 md:grid-cols-2 gap-8'>
+								{/* Interview Rounds */}
+								<div className='space-y-4'>
+									<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
+										<FileText className='h-4 w-4' /> Interview Rounds
+									</h4>
+
+									{/* Add Round Form */}
+									<div className='bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700/50 space-y-3'>
+										<div>
+											<label className='text-xs text-slate-500 dark:text-slate-400'>Round Title</label>
+											<input
+												type='text'
+												value={newRoundTitle}
+												onChange={(e) => setNewRoundTitle(e.target.value)}
+												className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm'
+												placeholder='e.g. Initial Screening'
+											/>
+										</div>
+										<div className='flex gap-2'>
+											<div className='flex-1'>
+												<label className='text-xs text-slate-500 dark:text-slate-400'>Type</label>
+												<select
+													value={newRoundType}
+													onChange={(e) => setNewRoundType(e.target.value)}
+													className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm capitalize'>
+													{INTERVIEW_TYPES_OPTIONS.map((t) => (
+														<option
+															key={t}
+															value={t}>
+															{t.replace('_', ' ')}
+														</option>
+													))}
+												</select>
+											</div>
+											<div className='w-24'>
+												<label className='text-xs text-slate-500 dark:text-slate-400'>Duration (m)</label>
+												<input
+													type='number'
+													min='15'
+													step='15'
+													value={newRoundDuration}
+													onChange={(e) => setNewRoundDuration(parseInt(e.target.value))}
+													className='w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-3 text-sm'
+												/>
+											</div>
+										</div>
+										<button
+											type='button'
+											onClick={handleAddRound}
+											className='w-full rounded-lg bg-orange-600 px-3 py-2 text-white hover:bg-orange-500 text-sm font-medium'>
+											Add Round
+										</button>
+									</div>
+
+									{/* Rounds List */}
+									<div className='space-y-2'>
+										{rounds.length === 0 ? (
+											<p className='text-sm text-slate-500 italic text-center py-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg'>
+												No rounds defined. Add a round to start.
+											</p>
+										) : (
+											rounds.map((round, index) => (
+												<div
+													key={index}
+													className='flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'>
+													<div>
+														<div className='font-medium text-slate-900 dark:text-white'>{round.title}</div>
+														<div className='text-xs text-slate-500 flex gap-2'>
+															<span className='capitalize'>{round.type.replace('_', ' ')}</span>
+															<span>•</span>
+															<span>{round.duration_minutes} min</span>
+														</div>
+													</div>
+													<button
+														type='button'
+														onClick={() => removeRound(index)}
+														className='p-1 text-slate-400 hover:text-red-500'>
+														<X className='h-4 w-4' />
+													</button>
+												</div>
+											))
+										)}
+									</div>
+								</div>
+
+								{/* Evaluation Weights */}
+								<div className='space-y-4'>
+									<h4 className='text-sm font-semibold text-orange-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-2'>
+										<Sliders className='h-4 w-4' /> Weights
+									</h4>
+									<div className='space-y-5 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50'>
+										{(Object.keys(weights) as Array<keyof EvaluationWeights>).map((key) => (
+											<div
+												key={key}
+												className='space-y-2'>
+												<div className='flex justify-between text-sm'>
+													<span className='capitalize text-slate-600 dark:text-slate-300'>{key.replace('_', ' ')}</span>
+													<span className='font-mono font-bold text-orange-600 dark:text-orange-400'>
+														{weights[key]}
+													</span>
+												</div>
+												<input
+													type='range'
+													min='0'
+													max='1'
+													step='0.1'
+													value={weights[key]}
+													onChange={(e) => handleWeightChange(key, parseFloat(e.target.value))}
+													className='h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 dark:bg-slate-700 accent-orange-600 dark:accent-orange-500'
+												/>
+											</div>
+										))}
+										<div className='pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center'>
+											<span className='text-xs text-slate-500 dark:text-slate-400'>Total Weight</span>
+											<span
+												className={`text-sm font-bold ${
+													Math.abs(Object.values(weights).reduce((a, b) => a + b, 0) - 1.0) < 0.01
+														? 'text-emerald-600 dark:text-emerald-400'
+														: 'text-red-600 dark:text-red-400'
+												}`}>
+												{Object.values(weights)
+													.reduce((a, b) => a + b, 0)
+													.toFixed(1)}
+											</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</form>
+
+						{/* Right Column - Job Description */}
+						<div className='p-6 flex flex-col h-full'>
+							<div className='flex-1 flex flex-col'>
+								<h4 className='text-sm font-semibold text-orange-500 uppercase tracking-wider flex items-center gap-2 mb-4'>
+									<FileText className='h-4 w-4' /> Job Description
+								</h4>
+								<div className='flex-1 flex flex-col min-h-[400px]'>
+									<textarea
+										value={description}
+										onChange={(e) => setDescription(e.target.value)}
+										placeholder='Enter a detailed job description here...
+
+Include:
+• Role responsibilities
+• Required qualifications
+• Nice-to-have skills
+• What success looks like
+• Team and culture information
+• Benefits and perks'
+										className='flex-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 resize-none'
+									/>
+								</div>
+
+								{/* AI Generation Section */}
+								<div className='mt-4 pt-4 border-t border-slate-200 dark:border-slate-700'>
+									<label className='text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2 mb-2'>
+										<Sparkles className='h-3 w-3 text-purple-500' />
+										Generate with AI
+									</label>
+									<div className='flex gap-2'>
+										<input
+											type='text'
+											value={aiPrompt}
+											onChange={(e) => setAiPrompt(e.target.value)}
+											onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleGenerateDescription())}
+											placeholder='e.g., Write a job description for a senior React developer at a fast-paced startup...'
+											className='flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 px-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500'
+										/>
+										<button
+											type='button'
+											onClick={handleGenerateDescription}
+											disabled={isGenerating || !aiPrompt.trim()}
+											className='flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all'>
+											{isGenerating ? (
+												<div className='h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+											) : (
+												<Send className='h-4 w-4' />
+											)}
+										</button>
+									</div>
+									<p className='mt-2 text-xs text-slate-400'>
+										Describe what you want and AI will generate a professional job description.
+									</p>
 								</div>
 							</div>
 						</div>
 					</div>
-				</form>
+				</div>
 
 				<div className='shrink-0 border-t border-slate-200 dark:border-slate-800 p-6 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900'>
 					<button
