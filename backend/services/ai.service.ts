@@ -52,3 +52,52 @@ export const generateJobDescription = async (params: GenerateJobDescriptionParam
 		throw new Error('Failed to generate job description via AI');
 	}
 };
+
+export const analyzeResume = async (
+	resumeText: string,
+	jobDescription: string
+): Promise<{
+	score: number;
+	summary: string;
+	strengths: string[];
+	weaknesses: string[];
+	skillsMatch: { skill: string; match: boolean }[];
+}> => {
+	const systemPrompt = `You are an expert ATS (Applicant Tracking System) and technical recruiter. Your task is to analyze a candidate's resume against a specific job description.
+    
+    Provide a structured JSON output with the following fields:
+    - score: A number between 0 and 100 representing the overall match.
+    - summary: A brief summary of the candidate's suitability.
+    - strengths: A list of key strengths relevant to the role.
+    - weaknesses: A list of potential gaps or missing requirements.
+    - skillsMatch: An array of objects showing which required skills from the JD are present in the resume. Format: { skill: "skill name", match: true/false }.
+    
+    Be objective and strict but fair. Focus on technical skills, experience, and relevant keywords.`;
+
+	const userMessage = `
+    Job Description:
+    ${jobDescription}
+    
+    Candidate Resume Text:
+    ${resumeText}
+    
+    Please analyze this resume against the job description and return the JSON analysis.`;
+
+	try {
+		const response = await openai.chat.completions.create({
+			model: 'gpt-4o',
+			messages: [
+				{ role: 'system', content: systemPrompt },
+				{ role: 'user', content: userMessage },
+			],
+			temperature: 0.2,
+			response_format: { type: 'json_object' },
+		});
+
+		const content = response.choices[0]?.message?.content || '{}';
+		return JSON.parse(content);
+	} catch (error) {
+		console.error('Error analyzing resume:', error);
+		throw new Error('Failed to analyze resume via AI');
+	}
+};

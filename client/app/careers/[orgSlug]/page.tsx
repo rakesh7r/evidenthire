@@ -17,114 +17,18 @@ import {
 import Link from 'next/link';
 import ApplicationModal from './application-modal';
 
-// Mock data for positions - this will be replaced with actual API data later
-const mockPositions = [
-	{
-		id: '1',
-		title: 'Senior Frontend Engineer',
-		department: 'Engineering',
-		location: 'Remote',
-		type: 'Full-time',
-		description: 'Build next-generation user interfaces with React, TypeScript, and modern web technologies.',
-		job_description: `We are looking for a Senior Frontend Engineer to join our team.
+import api from '@/lib/api';
+import { toast } from 'sonner';
 
-**Responsibilities:**
-- Build scalable and reusable components
-- Collaborate with design and product teams
-- Optimize application for maximum speed and scalability
-
-**Requirements:**
-- 5+ years of experience with React
-- Strong understanding of TypeScript
-- Experience with modern build tools`,
-		requirements: {
-			skills: [
-				{ name: 'React', level: 'senior' },
-				{ name: 'TypeScript', level: 'senior' },
-				{ name: 'Node.js', level: 'intermediate' },
-			],
-		},
-		posted_at: '2024-01-15',
-	},
-	{
-		id: '2',
-		title: 'Full Stack Developer',
-		department: 'Engineering',
-		location: 'San Francisco, CA',
-		type: 'Full-time',
-		description: 'Design and implement scalable backend services and intuitive frontend experiences.',
-		requirements: {
-			skills: [
-				{ name: 'Python', level: 'senior' },
-				{ name: 'React', level: 'intermediate' },
-				{ name: 'PostgreSQL', level: 'intermediate' },
-			],
-		},
-		posted_at: '2024-01-20',
-	},
-	{
-		id: '3',
-		title: 'Product Designer',
-		department: 'Design',
-		location: 'New York, NY',
-		type: 'Full-time',
-		description: 'Create beautiful, intuitive designs that delight users and drive business growth.',
-		requirements: {
-			skills: [
-				{ name: 'Figma', level: 'senior' },
-				{ name: 'UI/UX', level: 'senior' },
-				{ name: 'Prototyping', level: 'intermediate' },
-			],
-		},
-		posted_at: '2024-01-22',
-	},
-	{
-		id: '4',
-		title: 'DevOps Engineer',
-		department: 'Engineering',
-		location: 'Remote',
-		type: 'Full-time',
-		description: 'Build and maintain infrastructure that powers our platform at scale.',
-		requirements: {
-			skills: [
-				{ name: 'Kubernetes', level: 'senior' },
-				{ name: 'AWS', level: 'senior' },
-				{ name: 'Terraform', level: 'intermediate' },
-			],
-		},
-		posted_at: '2024-01-25',
-	},
-	{
-		id: '5',
-		title: 'Machine Learning Engineer',
-		department: 'AI/ML',
-		location: 'Remote',
-		type: 'Full-time',
-		description: 'Develop and deploy ML models that power our intelligent hiring platform.',
-		requirements: {
-			skills: [
-				{ name: 'Python', level: 'senior' },
-				{ name: 'PyTorch', level: 'senior' },
-				{ name: 'NLP', level: 'intermediate' },
-			],
-		},
-		posted_at: '2024-01-28',
-	},
-];
-
-const mockOrganization = {
-	name: 'EvidentHire',
-	description: 'We are building the future of hiring with AI-powered interview insights.',
-	culture: 'Innovation, transparency, and a deep commitment to eliminating bias in hiring.',
-	benefits: [
-		'Competitive Salary',
-		'Unlimited PTO',
-		'Remote-First',
-		'Health Insurance',
-		'Learning Budget',
-		'Stock Options',
-	],
-};
+interface Organization {
+	id: string;
+	name: string;
+	description?: string;
+	domain?: string;
+	city?: string;
+	country?: string;
+	website?: string;
+}
 
 interface Position {
 	id: string;
@@ -141,13 +45,50 @@ interface Position {
 }
 
 export default function CareersPage({ params }: { params: Promise<{ orgSlug: string }> }) {
-	const [positions, setPositions] = useState<Position[]>(mockPositions);
+	const [positions, setPositions] = useState<Position[]>([]);
+	const [organization, setOrganization] = useState<Organization | null>(null);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedDepartment, setSelectedDepartment] = useState('All');
 	const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [orgSlug, setOrgSlug] = useState<string>('');
 
-	const departments = ['All', ...new Set(mockPositions.map((p) => p.department))];
+	useEffect(() => {
+		const unwrapParams = async () => {
+			const resolvedParams = await params;
+			setOrgSlug(resolvedParams.orgSlug);
+		};
+		unwrapParams();
+	}, [params]);
+
+	useEffect(() => {
+		if (!orgSlug) return;
+
+		const fetchData = async () => {
+			setIsLoading(true);
+			try {
+				// Fetch Organization
+				const orgRes = await api.get(`/public/organizations/${orgSlug}`);
+				setOrganization(orgRes.data);
+
+				// Fetch Positions
+				const posRes = await api.get(`/public/organizations/${orgSlug}/positions`);
+				setPositions(posRes.data);
+			} catch (err: any) {
+				console.error('Error fetching career page data:', err);
+				setError('Failed to load careers page. Please check the URL or try again later.');
+				// fallback to empty or mocks if needed? user said "fetch the jobs", so likely depends on real data.
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		fetchData();
+	}, [orgSlug]);
+
+	const departments = ['All', ...new Set(positions.map((p) => p.department))];
 
 	const filteredPositions = positions.filter((pos) => {
 		const matchesSearch =
@@ -185,8 +126,43 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 		return colors[department] || 'bg-slate-500/10 text-slate-500 border-slate-500/20';
 	};
 
+	if (isLoading) {
+		return (
+			<div className='min-h-screen bg-slate-950 flex items-center justify-center'>
+				<div className='animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500'></div>
+			</div>
+		);
+	}
+
+	if (error || !organization) {
+		return (
+			<div className='min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center'>
+				<h1 className='text-2xl font-bold text-white mb-2'>Organization Not Found</h1>
+				<p className='text-slate-400'>{error || 'The organization you are looking for does not exist.'}</p>
+				<Link
+					href='/'
+					className='mt-6 text-orange-500 hover:underline'>
+					Return Home
+				</Link>
+			</div>
+		);
+	}
+
+	// Combine backend data with some defaults for display if needed
+	const displayOrg = {
+		name: organization.name,
+		description: organization.description || `Welcome to the careers page of ${organization.name}.`,
+		benefits: [
+			// Hardcoded benefits for now as DB doesn't have them
+			'Competitive Salary',
+			'Remote-First Culture',
+			'Health Insurance',
+			'Learning & Development',
+		],
+	};
+
 	return (
-		<div className='min-h-screen bg-slate-50 dark:bg-slate-950'>
+		<div className='min-h-screen bg-slate-950 text-white selection:bg-orange-500/30'>
 			{/* Navbar */}
 			<nav className='sticky top-0 z-50 w-full border-b border-white/10 bg-slate-900/95 backdrop-blur-md'>
 				<div className='mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
@@ -194,7 +170,7 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 						<div className='flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/20'>
 							<Bot className='h-5 w-5 text-white' />
 						</div>
-						<span className='text-xl font-bold tracking-tight text-white'>{mockOrganization.name}</span>
+						<span className='text-xl font-bold tracking-tight text-white'>{displayOrg.name}</span>
 						<span className='ml-2 rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-400 border border-orange-500/20'>
 							Careers
 						</span>
@@ -234,7 +210,7 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 					</h1>
 
 					<p className='mx-auto mt-6 max-w-2xl text-lg text-slate-300'>
-						{mockOrganization.description} Join our team and help us revolutionize how companies find and hire the best
+						{displayOrg.description} Join our team and help us revolutionize how companies find and hire the best
 						talent.
 					</p>
 
@@ -267,16 +243,16 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 			<section className='bg-white dark:bg-slate-900 py-16 border-b border-slate-200 dark:border-slate-800'>
 				<div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
 					<div className='text-center mb-10'>
-						<h2 className='text-2xl font-bold text-slate-900 dark:text-white'>Why Join Us?</h2>
-						<p className='mt-2 text-slate-600 dark:text-slate-400'>Perks and benefits that matter</p>
+						<h2 className='text-2xl font-bold text-white'>Why Join Us?</h2>
+						<p className='mt-2 text-slate-400'>Perks and benefits that matter</p>
 					</div>
 					<div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4'>
-						{mockOrganization.benefits.map((benefit, i) => (
+						{displayOrg.benefits.map((benefit, i) => (
 							<div
 								key={i}
-								className='group flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all duration-300'>
+								className='group flex flex-col items-center justify-center p-4 rounded-xl bg-white/5 border border-white/10 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all duration-300'>
 								<Zap className='h-6 w-6 text-orange-500 mb-2 group-hover:scale-110 transition-transform' />
-								<span className='text-sm font-medium text-slate-700 dark:text-slate-300 text-center'>{benefit}</span>
+								<span className='text-sm font-medium text-slate-300 text-center'>{benefit}</span>
 							</div>
 						))}
 					</div>
@@ -289,8 +265,8 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 					{/* Section Header */}
 					<div className='flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10'>
 						<div>
-							<h2 className='text-3xl font-bold text-slate-900 dark:text-white'>Open Positions</h2>
-							<p className='mt-2 text-slate-600 dark:text-slate-400'>Find your next opportunity and grow with us</p>
+							<h2 className='text-3xl font-bold text-white'>Open Positions</h2>
+							<p className='mt-2 text-slate-400'>Find your next opportunity and grow with us</p>
 						</div>
 
 						{/* Filters */}
@@ -303,7 +279,7 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 									placeholder='Search positions...'
 									value={searchTerm}
 									onChange={(e) => setSearchTerm(e.target.value)}
-									className='w-full sm:w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-500 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20'
+									className='w-full sm:w-64 rounded-lg border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20'
 								/>
 							</div>
 
@@ -316,7 +292,7 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 										className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
 											selectedDepartment === dept
 												? 'bg-orange-500 text-white shadow-lg shadow-orange-500/25'
-												: 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-orange-500/50'
+												: 'bg-white/5 text-slate-300 border border-white/10 hover:border-orange-500/50'
 										}`}>
 										{dept}
 									</button>
@@ -327,17 +303,17 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 
 					{/* Positions Grid */}
 					{filteredPositions.length === 0 ? (
-						<div className='flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700'>
-							<Briefcase className='h-12 w-12 text-slate-300 dark:text-slate-600 mb-4' />
-							<h3 className='text-lg font-medium text-slate-900 dark:text-white'>No positions found</h3>
-							<p className='mt-2 text-sm text-slate-500'>Try adjusting your search or filter criteria</p>
+						<div className='flex flex-col items-center justify-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10'>
+							<Briefcase className='h-12 w-12 text-slate-600 mb-4' />
+							<h3 className='text-lg font-medium text-white'>No positions found</h3>
+							<p className='mt-2 text-sm text-slate-400'>Try adjusting your search or filter criteria</p>
 						</div>
 					) : (
 						<div className='grid gap-4'>
 							{filteredPositions.map((position) => (
 								<div
 									key={position.id}
-									className='group relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/5 transition-all duration-300'>
+									className='group relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/5 transition-all duration-300'>
 									{/* Position Info */}
 									<div className='flex-1'>
 										<div className='flex items-center gap-3 mb-2'>
@@ -353,15 +329,13 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 											</span>
 										</div>
 
-										<h3 className='text-xl font-semibold text-slate-900 dark:text-white group-hover:text-orange-500 transition-colors'>
+										<h3 className='text-xl font-semibold text-white group-hover:text-orange-500 transition-colors'>
 											{position.title}
 										</h3>
 
-										<p className='mt-1 text-sm text-slate-600 dark:text-slate-400 line-clamp-2'>
-											{position.description}
-										</p>
+										<p className='mt-1 text-sm text-slate-400 line-clamp-2'>{position.description}</p>
 
-										<div className='mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-500 dark:text-slate-400'>
+										<div className='mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-400'>
 											<span className='flex items-center gap-1.5'>
 												<MapPin className='h-4 w-4' />
 												{position.location}
@@ -374,10 +348,10 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 
 										{/* Skills */}
 										<div className='mt-4 flex flex-wrap gap-2'>
-											{position.requirements.skills.map((skill, i) => (
+											{position.requirements?.skills?.map((skill, i) => (
 												<span
 													key={i}
-													className='inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'>
+													className='inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-white/10 text-slate-300 border border-white/10'>
 													{skill.name}
 												</span>
 											))}
@@ -406,10 +380,10 @@ export default function CareersPage({ params }: { params: Promise<{ orgSlug: str
 					<div className='flex flex-col items-center justify-between gap-6 sm:flex-row'>
 						<div className='flex items-center gap-2'>
 							<Bot className='h-6 w-6 text-orange-500' />
-							<span className='text-lg font-bold text-white'>{mockOrganization.name}</span>
+							<span className='text-lg font-bold text-white'>{displayOrg.name}</span>
 						</div>
 						<p className='text-sm text-slate-400'>
-							© {new Date().getFullYear()} {mockOrganization.name}. All rights reserved.
+							© {new Date().getFullYear()} {displayOrg.name}. All rights reserved.
 						</p>
 						<div className='flex gap-6'>
 							<a

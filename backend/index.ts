@@ -8,6 +8,8 @@ import positionRoute from './routes/position';
 import interviewRoute from './routes/interview';
 import webhookRoute from './routes/webhook';
 import aiRoute from './routes/ai';
+import applicationRoute from './routes/application';
+import publicRoute from './routes/public';
 import { checkAndExpireInterviews, checkAndTimeoutInterviews } from './services/interview-access.service';
 
 import { logger } from 'hono/logger';
@@ -68,6 +70,8 @@ v1.route('/positions', positionRoute);
 v1.route('/interviews', interviewRoute);
 v1.route('/webhooks/livekit', webhookRoute);
 v1.route('/ai', aiRoute);
+v1.route('/applications', applicationRoute);
+v1.route('/public', publicRoute);
 
 v1.get('/', (c) => {
 	return c.text('EvidentHire Backend');

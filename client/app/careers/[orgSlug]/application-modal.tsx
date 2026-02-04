@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { X, Upload, FileText, Loader2, CheckCircle, User, Mail, Briefcase, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
 interface Position {
 	id: string;
@@ -55,6 +56,8 @@ export default function ApplicationModal({ position, onClose }: ApplicationModal
 		return Object.keys(newErrors).length === 0;
 	};
 
+	// ...
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 
@@ -64,21 +67,37 @@ export default function ApplicationModal({ position, onClose }: ApplicationModal
 
 		setIsSubmitting(true);
 
-		// Simulate API call
-		await new Promise((resolve) => setTimeout(resolve, 2000));
+		try {
+			const data = new FormData();
+			data.append('name', formData.name);
+			data.append('email', formData.email);
+			data.append('positionId', position.id);
+			if (resume) {
+				data.append('resume', resume);
+			}
 
-		setIsSubmitting(false);
-		setIsSuccess(true);
+			await api.post('/applications/apply', data, {
+				headers: {
+					'Content-Type': 'multipart/form-data',
+				},
+			});
 
-		// Show success message
-		toast.success('Application submitted successfully!', {
-			description: `We'll review your application for ${position.title} and get back to you soon.`,
-		});
+			setIsSuccess(true);
+			toast.success('Application submitted successfully!', {
+				description: `We'll review your application for ${position.title} and get back to you soon.`,
+			});
 
-		// Close modal after brief delay to show success state
-		setTimeout(() => {
-			onClose();
-		}, 2000);
+			setTimeout(() => {
+				onClose();
+			}, 2000);
+		} catch (error: any) {
+			console.error('Application failed:', error);
+			toast.error('Failed to submit application', {
+				description: error.response?.data?.error || 'Please try again later.',
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

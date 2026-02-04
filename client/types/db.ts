@@ -63,6 +63,7 @@ export interface Candidate {
 	id: string; // UUID
 	email: string;
 	name?: string | null;
+	cv_analysis?: any | null; // JSONB
 	created_at: string; // ISO Date string
 }
 
