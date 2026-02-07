@@ -10,25 +10,7 @@ import SchedulerModal from '@/components/interview-scheduler-modal';
 import RecruitingChatbot from '@/components/recruiting-chatbot';
 import { ThemeToggle } from '@/components/theme-toggle';
 import api from '@/lib/api';
-
-interface Skill {
-	name: string;
-	level: 'junior' | 'intermediate' | 'senior' | 'expert';
-}
-
-interface Requirements {
-	skills?: Skill[];
-	interview_types?: string[];
-	evaluation_weights?: Record<string, number>;
-}
-
-interface Position {
-	id: string;
-	title: string;
-	requirements?: Requirements;
-	status: 'open' | 'closed';
-	description?: string;
-}
+import { Position } from '@/types/db';
 
 export default function PositionDetailsPage() {
 	const params = useParams();
@@ -41,6 +23,7 @@ export default function PositionDetailsPage() {
 	const [isSchedulerOpen, setIsSchedulerOpen] = useState(false);
 	const [selectedCandidateName, setSelectedCandidateName] = useState('');
 	const [selectedCandidateEmail, setSelectedCandidateEmail] = useState('');
+	const [selectedRound, setSelectedRound] = useState('');
 	const [applicationsCount, setApplicationsCount] = useState(0);
 	const [refreshKey, setRefreshKey] = useState(0);
 
@@ -100,9 +83,17 @@ export default function PositionDetailsPage() {
 	}
 
 	// Default requirements if missing/empty
-	const requirements = position.requirements || {};
+	const requirements = position.requirements || {
+		skills: [],
+		interview_types: [],
+		evaluation_weights: { communication: 0, problem_solving: 0, depth: 0 },
+	};
 	const skills = requirements.skills || [];
-	const interviewTypes = requirements.interview_types || [];
+
+	// Prioritize official 'rounds' from API, fallback to interview_types
+	const interviewRounds =
+		position.rounds && position.rounds.length > 0 ? position.rounds : requirements.interview_types || [];
+
 	const weights = requirements.evaluation_weights || {};
 
 	return (
@@ -191,7 +182,15 @@ export default function PositionDetailsPage() {
 							<div className='flex items-center justify-between mb-4'>
 								<h2 className='text-lg font-semibold text-slate-900 dark:text-white'>Scheduled Interviews</h2>
 							</div>
-							<CandidateInterviews positionId={positionId} />
+							<CandidateInterviews
+								positionId={positionId}
+								onReschedule={(name, email, type) => {
+									setSelectedCandidateName(name);
+									setSelectedCandidateEmail(email);
+									setSelectedRound(type || '');
+									setIsSchedulerOpen(true);
+								}}
+							/>
 						</div>
 					)}
 				</div>
@@ -227,18 +226,21 @@ export default function PositionDetailsPage() {
 							)}
 
 							{/* Interview Structure */}
-							{interviewTypes.length > 0 && (
+							{interviewRounds.length > 0 && (
 								<div>
 									<h4 className='text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3'>Structure</h4>
 									<ul className='space-y-2'>
-										{interviewTypes.map((type, i) => (
-											<li
-												key={i}
-												className='flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400'>
-												<div className='h-1.5 w-1.5 rounded-full bg-orange-500' />
-												<span className='capitalize'>{type.replace('_', ' ')}</span>
-											</li>
-										))}
+										{interviewRounds.map((type, i) => {
+											const title = typeof type === 'string' ? type : type.title;
+											return (
+												<li
+													key={i}
+													className='flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400'>
+													<div className='h-1.5 w-1.5 rounded-full bg-orange-500' />
+													<span className='capitalize'>{title.replace('_', ' ')}</span>
+												</li>
+											);
+										})}
 									</ul>
 								</div>
 							)}
@@ -276,7 +278,12 @@ export default function PositionDetailsPage() {
 					candidateName={selectedCandidateName}
 					candidateEmail={selectedCandidateEmail}
 					positionId={positionId}
-					onClose={() => setIsSchedulerOpen(false)}
+					rounds={interviewRounds}
+					defaultRound={selectedRound}
+					onClose={() => {
+						setIsSchedulerOpen(false);
+						setSelectedRound('');
+					}}
 					onSuccess={handleScheduleSuccess}
 				/>
 			)}
