@@ -449,7 +449,7 @@ app.get('/position/:positionId', authMiddleware, async (c) => {
                 created_at,
                 updated_at
             FROM application
-            WHERE position_id = ${positionId}
+            WHERE position_id = ${positionId} AND status != 'rejected'
             ORDER BY created_at DESC
         `;
 
