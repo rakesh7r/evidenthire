@@ -70,8 +70,10 @@ export const notifyInterviewScheduled = async (data: {
 
 	const positionText = data.roundTitle ? `${data.positionTitle} - ${data.roundTitle}` : data.positionTitle;
 
-	// Base link
-	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
+	// Base link (handle trailing slash in APP_URL)
+	const cleanAppUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+	const baseLink = `${cleanAppUrl}/interview/${data.interviewId}`;
+
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
@@ -131,6 +133,8 @@ export const notifyInterviewScheduled = async (data: {
             </div>
             <p>You can join the interview directly through our lobby below:</p>
             <a href="${candidateJoinLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">Join Interview Lobby</a>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="${candidateJoinLink}" style="color: #f97316;">${candidateJoinLink}</a></p>
             <p>Please make sure to check your audio and video settings before joining.</p>
             <p>Best regards,<br>The Recruitment Team</p>
         </div>
@@ -189,7 +193,7 @@ export const notifyInterviewScheduled = async (data: {
                 </div>
                 <div style="margin: 20px 0;">
                     <a href="${baseLink}?isInterviewer=true" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
-                    <a href="${process.env.APP_URL}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
+                    <a href="${cleanAppUrl}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
                 </div>
                 <p>Please review the candidate's profile and the interview guidelines in the dashboard.</p>
             </div>
@@ -244,7 +248,10 @@ export const notifyInterviewUpdated = async (data: {
 	// Reuse logic from scheduled but change title/subject
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
+	// Base link (handle trailing slash in APP_URL)
+	const cleanAppUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+	const baseLink = `${cleanAppUrl}/interview/${data.interviewId}`;
+
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
 				data.candidateAccessKey
@@ -300,6 +307,8 @@ export const notifyInterviewUpdated = async (data: {
             </div>
             <p>You can join using the same link:</p>
             <a href="${candidateJoinLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">Join Interview Lobby</a>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">Full link:<br>
+            <a href="${candidateJoinLink}" style="color: #f97316;">${candidateJoinLink}</a></p>
         </div>
         `,
 		candidateIcsAttachment
@@ -379,8 +388,10 @@ export const resendCandidateReminder = async (data: {
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-	// Base link
-	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
+	// Base link (handle trailing slash in APP_URL)
+	const cleanAppUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+	const baseLink = `${cleanAppUrl}/interview/${data.interviewId}`;
+
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
@@ -402,6 +413,8 @@ export const resendCandidateReminder = async (data: {
             </div>
             <p>You can join the interview directly using the link below:</p>
             <a href="${candidateJoinLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">Join Interview Lobby</a>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">Full link:<br>
+            <a href="${candidateJoinLink}" style="color: #f97316;">${candidateJoinLink}</a></p>
             <p>Please make sure to check your audio and video settings before joining.</p>
             <p>Best regards,<br>The Recruitment Team</p>
         </div>

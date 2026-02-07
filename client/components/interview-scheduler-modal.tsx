@@ -1,9 +1,22 @@
 'use client';
 
-import { X, Calendar, Clock, Video, User, Users, Loader2, CheckCircle, Search, ChevronDown } from 'lucide-react';
+import {
+	X,
+	Calendar,
+	Clock,
+	Video,
+	User,
+	Users,
+	Loader2,
+	CheckCircle,
+	Search,
+	ChevronDown,
+	ListFilter,
+} from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { Round } from '@/types/db';
 
 interface TeamMember {
 	id: string;
@@ -16,6 +29,8 @@ interface SchedulerModalProps {
 	candidateName: string;
 	candidateEmail: string;
 	positionId: string;
+	rounds?: (string | Round)[];
+	defaultRound?: string;
 	onClose: () => void;
 	onSuccess?: () => void;
 }
@@ -24,11 +39,28 @@ export default function SchedulerModal({
 	candidateName,
 	candidateEmail,
 	positionId,
+	rounds = [],
+	defaultRound,
 	onClose,
 	onSuccess,
 }: SchedulerModalProps) {
 	const [selectedDate, setSelectedDate] = useState<string>('');
 	const [selectedTime, setSelectedTime] = useState<string>('');
+
+	// Helper to get initial selected round
+	const getInitialRound = () => {
+		if (defaultRound) {
+			const found = rounds.find((r) => (typeof r === 'string' ? r === defaultRound : r.title === defaultRound));
+			if (found) return typeof found === 'string' ? found : found.title;
+		}
+		if (rounds.length > 0) {
+			const first = rounds[0];
+			return typeof first === 'string' ? first : first.title;
+		}
+		return '';
+	};
+
+	const [selectedRound, setSelectedRound] = useState<string>(getInitialRound());
 	const [selectedInterviewers, setSelectedInterviewers] = useState<TeamMember[]>([]);
 	const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 	const [loading, setLoading] = useState(false);
@@ -77,22 +109,6 @@ export default function SchedulerModal({
 		return isNotSelected && (name.includes(searchLower) || email.includes(searchLower));
 	});
 
-	// Generate time slots (30-minute intervals from 9 AM to 6 PM)
-	const timeSlots = [];
-	for (let hour = 9; hour <= 18; hour++) {
-		for (let minute = 0; minute < 60; minute += 30) {
-			if (hour === 18 && minute > 0) break;
-			const h = hour.toString().padStart(2, '0');
-			const m = minute.toString().padStart(2, '0');
-			const period = hour >= 12 ? 'PM' : 'AM';
-			const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-			timeSlots.push({
-				value: `${h}:${m}`,
-				label: `${displayHour}:${m} ${period}`,
-			});
-		}
-	}
-
 	// Get minimum date (today)
 	const today = new Date().toISOString().split('T')[0];
 
@@ -117,7 +133,17 @@ export default function SchedulerModal({
 			return;
 		}
 
+		if (!selectedRound) {
+			toast.error('Please select an interview round');
+			return;
+		}
+
 		setLoading(true);
+
+		// Find the actual round object if possible
+		const roundObj = rounds.find((r) => (typeof r === 'string' ? r === selectedRound : r.title === selectedRound));
+		const roundTitle = typeof roundObj === 'string' ? roundObj : roundObj?.title;
+		const roundType = typeof roundObj === 'string' ? roundObj : roundObj?.type;
 
 		try {
 			await api.post('/interviews', {
@@ -126,6 +152,8 @@ export default function SchedulerModal({
 				positionId,
 				date: selectedDate,
 				time: selectedTime,
+				roundTitle,
+				roundType,
 				interviewerIds: selectedInterviewers.map((m) => m.id),
 			});
 
@@ -183,40 +211,67 @@ export default function SchedulerModal({
 
 				{/* Scrollable Content */}
 				<div className='flex-1 overflow-y-auto p-6 space-y-6'>
-					{/* Date Picker */}
+					{/* Round Selection */}
 					<div>
 						<label className='mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300'>
-							<Calendar className='inline h-4 w-4 mr-1.5' />
-							Select Date
+							<ListFilter className='inline h-4 w-4 mr-1.5' />
+							Select Round
 						</label>
-						<input
-							type='date'
-							min={today}
-							value={selectedDate}
-							onChange={(e) => setSelectedDate(e.target.value)}
-							className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-all'
-						/>
+						{rounds.length > 0 ? (
+							<select
+								value={selectedRound}
+								onChange={(e) => setSelectedRound(e.target.value)}
+								className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-all'>
+								{rounds.map((round, idx) => {
+									const title = typeof round === 'string' ? round : round.title;
+									const value = typeof round === 'string' ? round : round.title;
+									return (
+										<option
+											key={idx}
+											value={value}>
+											{title.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+										</option>
+									);
+								})}
+							</select>
+						) : (
+							<input
+								type='text'
+								value={selectedRound}
+								onChange={(e) => setSelectedRound(e.target.value)}
+								placeholder='e.g. Technical Screening'
+								className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-all'
+							/>
+						)}
 					</div>
 
-					{/* Time Picker */}
-					<div>
-						<label className='mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300'>
-							<Clock className='inline h-4 w-4 mr-1.5' />
-							Select Time
-						</label>
-						<select
-							value={selectedTime}
-							onChange={(e) => setSelectedTime(e.target.value)}
-							className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-all'>
-							<option value=''>Select a time</option>
-							{timeSlots.map((slot) => (
-								<option
-									key={slot.value}
-									value={slot.value}>
-									{slot.label}
-								</option>
-							))}
-						</select>
+					{/* Date & Time Picker */}
+					<div className='grid grid-cols-2 gap-4'>
+						<div>
+							<label className='mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300'>
+								<Calendar className='inline h-4 w-4 mr-1.5' />
+								Date
+							</label>
+							<input
+								type='date'
+								min={today}
+								value={selectedDate}
+								onChange={(e) => setSelectedDate(e.target.value)}
+								className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-all'
+							/>
+						</div>
+						<div>
+							<label className='mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300'>
+								<Clock className='inline h-4 w-4 mr-1.5' />
+								Time
+							</label>
+							<input
+								type='time'
+								value={selectedTime}
+								onChange={(e) => setSelectedTime(e.target.value)}
+								className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none transition-all'
+							/>
+						</div>
 					</div>
 
 					{/* Searchable Interviewers Dropdown */}
@@ -341,7 +396,7 @@ export default function SchedulerModal({
 						Cancel
 					</button>
 					<button
-						disabled={!selectedDate || !selectedTime || selectedInterviewers.length === 0 || loading}
+						disabled={!selectedDate || !selectedTime || !selectedRound || selectedInterviewers.length === 0 || loading}
 						onClick={handleSubmit}
 						className='flex items-center gap-2 rounded-lg bg-orange-600 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all'>
 						{loading ? (

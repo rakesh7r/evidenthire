@@ -14,6 +14,7 @@ import {
 	AlertCircle,
 	ExternalLink,
 	Search,
+	RefreshCw,
 } from 'lucide-react';
 
 interface InterviewRound {
@@ -21,7 +22,7 @@ interface InterviewRound {
 	type: string;
 	date: string;
 	time: string;
-	status: 'completed' | 'ongoing' | 'scheduled' | 'failed';
+	status: 'completed' | 'ongoing' | 'scheduled' | 'failed' | 'cancelled';
 	interviewer: string;
 	analysis: string;
 }
@@ -34,7 +35,13 @@ interface CandidateGroup {
 	interviews: InterviewRound[];
 }
 
-export default function CandidateInterviews({ positionId }: { positionId: string }) {
+export default function CandidateInterviews({
+	positionId,
+	onReschedule,
+}: {
+	positionId: string;
+	onReschedule?: (candidateName: string, candidateEmail: string, interviewType?: string) => void;
+}) {
 	// Dummy data for now
 	const [candidates] = useState<CandidateGroup[]>([
 		{
@@ -94,9 +101,9 @@ export default function CandidateInterviews({ positionId }: { positionId: string
 					type: 'Culture Fit',
 					date: '2024-05-20',
 					time: '09:00 AM',
-					status: 'scheduled',
+					status: 'cancelled',
 					interviewer: 'Emma Wilson',
-					analysis: 'Pending interview completion.',
+					analysis: 'Interview cancelled by candidate.',
 				},
 			],
 		},
@@ -186,9 +193,12 @@ export default function CandidateInterviews({ positionId }: { positionId: string
 															className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border ${
 																interview.status === 'completed'
 																	? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+																	: interview.status === 'cancelled'
+																	? 'bg-red-500/10 text-red-500 border-red-500/20'
 																	: 'bg-amber-500/10 text-amber-500 border-amber-500/20'
 															}`}>
 															{interview.status === 'completed' && <CheckCircle2 className='h-3 w-3' />}
+															{interview.status === 'cancelled' && <AlertCircle className='h-3 w-3' />}
 															{interview.status}
 														</span>
 													</div>
@@ -217,10 +227,20 @@ export default function CandidateInterviews({ positionId }: { positionId: string
 												</div>
 
 												<div className='flex flex-col gap-2 shrink-0 md:min-w-[160px]'>
-													<button className='flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-orange-500 shadow-lg shadow-orange-600/10'>
-														<Eye className='h-3.5 w-3.5' />
-														VIEW REPORT
-													</button>
+													{(interview.status === 'cancelled' || interview.status === 'failed') && (
+														<button
+															onClick={() => onReschedule?.(candidate.name, candidate.email, interview.type)}
+															className='flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-orange-500 shadow-lg shadow-orange-600/10'>
+															<RefreshCw className='h-3.5 w-3.5' />
+															RESCHEDULE
+														</button>
+													)}
+													{interview.status === 'completed' && (
+														<button className='flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-orange-500 shadow-lg shadow-orange-600/10'>
+															<Eye className='h-3.5 w-3.5' />
+															VIEW REPORT
+														</button>
+													)}
 													<button className='flex items-center justify-center gap-2 rounded-lg bg-slate-100 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 transition-all hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'>
 														<Download className='h-3.5 w-3.5' />
 														DOWNLOAD PDF
