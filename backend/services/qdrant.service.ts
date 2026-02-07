@@ -1,5 +1,6 @@
 import { qdrantClient } from '../lib/qdrant';
 import { generateEmbedding, EMBEDDING_DIMENSIONS } from './embedding.service';
+import logger from '../lib/logger';
 
 /**
  * Get collection name for an organization
@@ -25,7 +26,7 @@ export async function ensureCollection(organizationId: string): Promise<void> {
 					distance: 'Cosine',
 				},
 			});
-			console.log(`Created Qdrant collection: ${collectionName}`);
+			logger.info({ collectionName }, 'Created Qdrant collection');
 
 			// Create payload indexes for filtering
 			await qdrantClient.createPayloadIndex(collectionName, {
@@ -40,10 +41,10 @@ export async function ensureCollection(organizationId: string): Promise<void> {
 				field_name: 'overall_score',
 				field_schema: 'integer',
 			});
-			console.log(`Created payload indexes for: ${collectionName}`);
+			logger.info({ collectionName }, 'Created Qdrant payload indexes');
 		}
 	} catch (error) {
-		console.error('Error ensuring Qdrant collection:', error);
+		logger.error({ error: String(error), collectionName }, 'Error ensuring Qdrant collection');
 		throw error;
 	}
 }
@@ -80,11 +81,10 @@ export async function upsertResumeVector(resumeText: string, metadata: ResumeMet
 		// Ensure collection exists
 		await ensureCollection(metadata.organizationId);
 
-		// Generate embedding
 		const embedding = await generateEmbedding(resumeText);
 
 		if (embedding.length === 0) {
-			console.warn('Empty embedding returned, skipping vector storage');
+			logger.warn({ applicationId: metadata.applicationId }, 'Empty embedding returned, skipping vector storage');
 			return;
 		}
 
@@ -129,9 +129,9 @@ export async function upsertResumeVector(resumeText: string, metadata: ResumeMet
 			],
 		});
 
-		console.log(`Stored resume vector for application: ${metadata.applicationId}`);
+		logger.info({ applicationId: metadata.applicationId }, 'Stored resume vector');
 	} catch (error) {
-		console.error('Error storing resume vector:', error);
+		logger.error({ error: String(error), applicationId: metadata.applicationId }, 'Error storing resume vector');
 		// Don't throw - vector storage failure shouldn't block application submission
 	}
 }
@@ -153,9 +153,9 @@ export async function updateApplicationStatus(
 				status,
 			},
 		});
-		console.log(`Updated status to '${status}' for application: ${applicationId}`);
+		logger.info({ applicationId, status }, 'Updated application status in Qdrant');
 	} catch (error) {
-		console.error('Error updating application status in Qdrant:', error);
+		logger.error({ error: String(error), applicationId }, 'Error updating application status in Qdrant');
 	}
 }
 
@@ -170,9 +170,9 @@ export async function deleteResumeVector(organizationId: string, applicationId: 
 			wait: true,
 			points: [applicationId],
 		});
-		console.log(`Deleted resume vector for application: ${applicationId}`);
+		logger.info({ applicationId }, 'Deleted resume vector from Qdrant');
 	} catch (error) {
-		console.error('Error deleting resume vector:', error);
+		logger.error({ error: String(error), applicationId }, 'Error deleting resume vector');
 		// Don't throw - deletion failure shouldn't block
 	}
 }
@@ -205,10 +205,10 @@ export async function bulkDeleteByPosition(organizationId: string, positionId: s
 			},
 		});
 
-		console.log(`Bulk deleted vectors for position: ${positionId}`);
+		logger.info({ positionId }, 'Bulk deleted vectors for position');
 		return typeof result === 'object' ? 1 : 0; // Qdrant doesn't return count
 	} catch (error) {
-		console.error('Error bulk deleting vectors:', error);
+		logger.error({ error: String(error), positionId }, 'Error bulk deleting vectors');
 		return 0;
 	}
 }
@@ -241,10 +241,10 @@ export async function bulkDeleteByStatus(organizationId: string, status: string)
 			},
 		});
 
-		console.log(`Bulk deleted vectors with status: ${status}`);
+		logger.info({ status }, 'Bulk deleted vectors by status');
 		return 1;
 	} catch (error) {
-		console.error('Error bulk deleting vectors by status:', error);
+		logger.error({ error: String(error), status }, 'Error bulk deleting vectors by status');
 		return 0;
 	}
 }
@@ -263,10 +263,10 @@ export async function bulkDeleteApplications(organizationId: string, application
 			points: applicationIds,
 		});
 
-		console.log(`Bulk deleted ${applicationIds.length} vectors`);
+		logger.info({ count: applicationIds.length }, 'Bulk deleted application vectors');
 		return applicationIds.length;
 	} catch (error) {
-		console.error('Error bulk deleting vectors:', error);
+		logger.error({ error: String(error) }, 'Error bulk deleting vectors');
 		return 0;
 	}
 }
@@ -321,7 +321,7 @@ export async function searchResumes(
 		const queryEmbedding = await generateEmbedding(query);
 
 		if (queryEmbedding.length === 0) {
-			console.warn('Empty query embedding, returning empty results');
+			logger.warn('Empty query embedding, returning empty results');
 			return [];
 		}
 
@@ -412,7 +412,7 @@ export async function searchResumes(
 			projectsScore: (result.payload?.projects_score as number) ?? null,
 		}));
 	} catch (error) {
-		console.error('Error searching resumes:', error);
+		logger.error({ error: String(error), collectionName }, 'Error searching resumes');
 		return [];
 	}
 }

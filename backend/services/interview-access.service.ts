@@ -4,6 +4,7 @@
  */
 
 import { sql } from '../db';
+import logger from '../lib/logger';
 
 // Configuration constants
 export const ACCESS_CONFIG = {
@@ -152,7 +153,7 @@ export async function checkInterviewAccess(
 		// Still in grace period after scheduled time
 		const minutesPastSchedule = Math.ceil((now.getTime() - scheduledStart.getTime()) / 60000);
 		// Allow with warning
-		console.log(`Late join attempt for interview ${interviewId}: ${minutesPastSchedule} minutes past schedule`);
+		logger.info({ interviewId, minutesPastSchedule }, 'Late join attempt');
 	}
 
 	// Interview is in progress - check waiting room for candidates
@@ -208,7 +209,7 @@ export async function recordParticipantJoin(
 		WHERE id = ${interviewId}
 	`;
 
-	console.log(`Participant (${role}) joined interview ${interviewId}`);
+	logger.info({ interviewId, role }, 'Participant joined interview');
 }
 
 /**
@@ -247,7 +248,7 @@ export async function admitCandidate(
 	`;
 
 	if (result[0]) {
-		console.log(`Candidate admitted to interview ${interviewId} by interviewer ${interviewerUserId}`);
+		logger.info({ interviewId, interviewerUserId }, 'Candidate admitted to interview');
 		return { success: true, message: 'Candidate has been admitted to the interview.' };
 	}
 
@@ -336,7 +337,7 @@ export async function endInterview(
 		// Check minimum duration for "completed" status
 		if (durationMinutes < ACCESS_CONFIG.MIN_DURATION_FOR_COMPLETE_MINUTES) {
 			finalStatus = 'cancelled'; // Short interviews are treated as cancelled/aborted
-			console.log(`Interview ${interviewId} was too short (${durationMinutes.toFixed(1)} min), marking as cancelled`);
+			logger.info({ interviewId, durationMinutes }, 'Interview was too short, marking as cancelled');
 		}
 	} else {
 		// No one ever joined
@@ -356,7 +357,7 @@ export async function endInterview(
 	`;
 
 	if (result[0]) {
-		console.log(`Interview ${interviewId} ended with status ${finalStatus}, reason: ${reason}`);
+		logger.info({ interviewId, finalStatus, reason }, 'Interview ended');
 		return { success: true, message: `Interview ended successfully.`, status: finalStatus };
 	}
 
@@ -385,7 +386,7 @@ export async function checkAndExpireInterviews(): Promise<{ expiredCount: number
 
 	const expiredCount = result.length;
 	if (expiredCount > 0) {
-		console.log(`Auto-expired ${expiredCount} interviews that passed their join window`);
+		logger.info({ expiredCount }, 'Auto-expired interviews that passed their join window');
 	}
 
 	return { expiredCount };
@@ -412,7 +413,7 @@ export async function checkAndTimeoutInterviews(): Promise<{ timedOutCount: numb
 
 	const timedOutCount = result.length;
 	if (timedOutCount > 0) {
-		console.log(`Auto-timed-out ${timedOutCount} interviews that exceeded max duration`);
+		logger.info({ timedOutCount }, 'Auto-timed-out interviews that exceeded max duration');
 	}
 
 	return { timedOutCount };

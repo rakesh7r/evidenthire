@@ -1,4 +1,5 @@
 import { sql } from '../db';
+import logger from '../lib/logger';
 
 // Types for session management
 export interface InterviewSession {
@@ -63,7 +64,10 @@ export const getOrCreateSession = async (
     `;
 
 	if (activeSessions[0]) {
-		console.log(`Found active session ${activeSessions[0].session_number} for interview ${interviewId}`);
+		logger.info(
+			{ sessionId: activeSessions[0].id, sessionNumber: activeSessions[0].session_number, interviewId },
+			'Found active session'
+		);
 		return { session: activeSessions[0] as InterviewSession, isNew: false };
 	}
 
@@ -96,7 +100,7 @@ export const getOrCreateSession = async (
         RETURNING *
     `;
 
-	console.log(`Created new session ${nextSessionNumber} for interview ${interviewId}`);
+	logger.info({ interviewId, sessionNumber: nextSessionNumber }, 'Created new session');
 	return { session: newSession[0] as InterviewSession, isNew: true };
 };
 
@@ -166,7 +170,7 @@ export const endSession = async (sessionId: string, totalDurationMs?: number): P
         WHERE id = ${sessionId}
         RETURNING *
     `;
-	console.log(`Session ${sessionId} ended`);
+	logger.info({ sessionId }, 'Session ended');
 	return (updated[0] as InterviewSession) || null;
 };
 

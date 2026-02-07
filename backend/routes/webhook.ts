@@ -9,6 +9,7 @@ import {
 } from '../services/livekit.service';
 import { endInterview } from '../services/interview-access.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import logger from '../lib/logger';
 
 const webhook = new Hono();
 const receiver = new WebhookReceiver(process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
@@ -31,6 +32,7 @@ webhook.post('/', async (c) => {
 
 	try {
 		const event = await receiver.receive(body, authHeader);
+		logger.info({ event: event.event, room: event.room?.name }, '[LIVEKIT-WEBHOOK] Received event');
 
 		const roomName = event.room?.name;
 		if (!roomName) return c.json({ success: true });
@@ -38,10 +40,18 @@ webhook.post('/', async (c) => {
 		const interviewId = roomName;
 		switch (event.event) {
 			case 'room_started':
-				console.log(`Room started: ${roomName}.`);
+				logger.info({ roomName }, '[LIVEKIT-WEBHOOK] Room started');
 				break;
 
 			case 'track_published':
+				logger.info(
+					{
+						trackSid: event.track?.sid,
+						type: event.track?.type,
+						participant: event.participant?.identity,
+					},
+					'[LIVEKIT-WEBHOOK] Track published'
+				);
 				if (event.track?.type === TrackType.AUDIO) {
 					const payload = {
 						event: 'track_published',
@@ -57,13 +67,13 @@ webhook.post('/', async (c) => {
 							MessageBody: JSON.stringify(payload),
 						})
 					);
-					console.log('Track published event sent to SQS');
+					logger.info({ trackSid: event.track.sid }, '[LIVEKIT-WEBHOOK] Track published event sent to SQS');
 					await startTrackAudioRecording(roomName, event.track.sid, interviewId, event.participant?.identity);
 				}
 				break;
 
 			case 'room_finished':
-				console.log(`Room finished: ${roomName}. Processing session end.`);
+				logger.info({ roomName }, '[LIVEKIT-WEBHOOK] Room finished: Processing session end');
 
 				// Get the session record from database (more reliable than string ID)
 				const sessionRecord = await getLastSessionRecord(interviewId);
@@ -88,8 +98,9 @@ webhook.post('/', async (c) => {
 							MessageBody: JSON.stringify(payload),
 						})
 					);
-					console.log(
-						`Session ended event sent to transcript queue for session ${sessionId} (DB ID: ${sessionRecord?.id})`
+					logger.info(
+						{ sessionId, sessionDbId: sessionRecord?.id },
+						'[LIVEKIT-WEBHOOK] Session ended event sent to transcript queue'
 					);
 				}
 
@@ -100,14 +111,14 @@ webhook.post('/', async (c) => {
 				// This is a normal room finish, so participants left
 				const endResult = await endInterview(interviewId, 'normal');
 				if (endResult.success) {
-					console.log(`Interview ${interviewId} auto-ended with status: ${endResult.status}`);
+					logger.info({ interviewId, status: endResult.status }, '[LIVEKIT-WEBHOOK] Interview auto-ended');
 				}
 				break;
 		}
 
 		return c.json({ success: true });
 	} catch (err: any) {
-		console.error('Webhook verification failed:', err);
+		logger.error({ error: String(err) }, '[LIVEKIT-WEBHOOK] Webhook verification failed');
 		return c.json({ error: err.message }, 400);
 	}
 });

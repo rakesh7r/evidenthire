@@ -1,4 +1,5 @@
 import openai from '../lib/openai';
+import logger from '../lib/logger';
 import type { RequirementsSchema } from '../../client/types/db';
 
 interface GenerateJobDescriptionParams {
@@ -48,7 +49,7 @@ export const generateJobDescription = async (params: GenerateJobDescriptionParam
 
 		return response.choices[0]?.message?.content || 'Failed to generate job description.';
 	} catch (error) {
-		console.error('Error generating job description:', error);
+		logger.error({ error: String(error) }, 'Error generating job description');
 		throw new Error('Failed to generate job description via AI');
 	}
 };
@@ -148,7 +149,7 @@ Return the JSON analysis.`;
 			projectsScore: parsed.projectsScore ?? 0,
 		};
 	} catch (error) {
-		console.error('Error analyzing resume:', error);
+		logger.error({ error: String(error) }, 'Error analyzing resume');
 		throw new Error('Failed to analyze resume via AI');
 	}
 };

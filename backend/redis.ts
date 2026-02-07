@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import logger from './lib/logger';
 
 const createRedisClient = () => {
 	const commonOptions = {
@@ -7,7 +8,7 @@ const createRedisClient = () => {
 	};
 
 	if (process.env.REDIS_HOST_URL) {
-		console.log('Using Redis Cloud configuration');
+		logger.info('Using Redis Cloud configuration');
 		return new Redis({
 			...commonOptions,
 			host: process.env.REDIS_HOST_URL,
@@ -21,7 +22,7 @@ const createRedisClient = () => {
 	if (!REDIS_URL) {
 		throw new Error('REDIS_URL not set');
 	}
-	console.log(`Using Redis URL: ${REDIS_URL.includes('localhost') ? 'localhost' : 'remote'}`);
+	logger.info({ remote: !REDIS_URL.includes('localhost') }, 'Using Redis');
 	return new Redis(REDIS_URL, commonOptions);
 };
 
@@ -29,18 +30,18 @@ const createRedisClient = () => {
 export const redis = createRedisClient();
 
 redis.on('connect', () => {
-	console.log('Redis connected');
+	logger.info('Redis connected');
 });
 
 redis.on('error', (err) => {
-	console.error('Redis error:', err);
+	logger.error({ error: String(err) }, 'Redis error');
 });
 
 // Connect to Redis (blocking with await)
 try {
 	await redis.connect();
 } catch (err: any) {
-	console.warn('Redis connection failed, chunk indexing will fall back to DB:', err.message);
+	logger.warn({ error: err.message }, 'Redis connection failed, chunk indexing will fall back to DB');
 }
 
 // Key generators
@@ -62,7 +63,7 @@ export const getNextChunkIndex = async (interviewId: string, fallbackIndex: numb
 		const newIndex = await redis.incr(CHUNK_INDEX_KEY(interviewId));
 		return newIndex;
 	} catch (err) {
-		console.error('Redis getNextChunkIndex error:', err);
+		logger.error({ error: String(err), interviewId }, 'Redis getNextChunkIndex error');
 		// Fallback: return fallback + 1
 		return fallbackIndex + 1;
 	}
@@ -76,7 +77,7 @@ export const getCurrentChunkIndex = async (interviewId: string): Promise<number>
 		const value = await redis.get(CHUNK_INDEX_KEY(interviewId));
 		return value ? parseInt(value, 10) : 0;
 	} catch (err) {
-		console.error('Redis getCurrentChunkIndex error:', err);
+		logger.error({ error: String(err), interviewId }, 'Redis getCurrentChunkIndex error');
 		return 0;
 	}
 };
@@ -87,9 +88,9 @@ export const getCurrentChunkIndex = async (interviewId: string): Promise<number>
 export const initChunkIndex = async (interviewId: string, startIndex: number): Promise<void> => {
 	try {
 		await redis.set(CHUNK_INDEX_KEY(interviewId), startIndex);
-		console.log(`Initialized chunk index for ${interviewId} to ${startIndex}`);
+		logger.info({ interviewId, startIndex }, 'Initialized chunk index');
 	} catch (err) {
-		console.error('Redis initChunkIndex error:', err);
+		logger.error({ error: String(err), interviewId }, 'Redis initChunkIndex error');
 	}
 };
 
@@ -101,7 +102,7 @@ export const getAndClearChunkIndex = async (interviewId: string): Promise<number
 		const value = await redis.getdel(CHUNK_INDEX_KEY(interviewId));
 		return value ? parseInt(value, 10) : 0;
 	} catch (err) {
-		console.error('Redis getAndClearChunkIndex error:', err);
+		logger.error({ error: String(err), interviewId }, 'Redis getAndClearChunkIndex error');
 		return 0;
 	}
 };

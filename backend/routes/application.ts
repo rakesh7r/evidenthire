@@ -14,6 +14,7 @@ import {
 import { notifyApplicationRejected } from '../services/email.service';
 import { authMiddleware, type AuthEnv } from '../middleware/auth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import logger from '../lib/logger';
 
 const app = new Hono<AuthEnv>();
 
@@ -119,7 +120,7 @@ app.get('/search', authMiddleware, async (c) => {
 			query,
 		});
 	} catch (error: any) {
-		console.error('Error searching applications:', error);
+		logger.error({ error: error.message || String(error) }, 'Error searching applications');
 		return c.json({ error: error.message || 'Internal Server Error' }, 500);
 	}
 });
@@ -180,13 +181,13 @@ app.put('/:id/status', authMiddleware, async (c) => {
 			// Delete from S3 (non-blocking)
 			if (app.resume_s3_url) {
 				deleteResumeFromS3(app.resume_s3_url).catch((err) => {
-					console.error('Failed to delete resume from S3:', err);
+					logger.error({ error: String(err), applicationId }, 'Failed to delete resume from S3');
 				});
 			}
 
 			// Delete from Qdrant (non-blocking)
 			deleteResumeVector(orgId, applicationId).catch((err) => {
-				console.error('Failed to delete from Qdrant:', err);
+				logger.error({ error: String(err), applicationId }, 'Failed to delete from Qdrant');
 			});
 
 			// Send regret email (non-blocking)
@@ -197,7 +198,7 @@ app.put('/:id/status', authMiddleware, async (c) => {
 					positionTitle: app.position_title,
 					organizationName: app.org_name,
 				}).catch((err) => {
-					console.error('Failed to send regret email:', err);
+					logger.error({ error: String(err), applicationId }, 'Failed to send regret email');
 				});
 			}
 
@@ -217,13 +218,13 @@ app.put('/:id/status', authMiddleware, async (c) => {
 
 			// Update status in Qdrant (non-blocking)
 			updateApplicationStatus(orgId, applicationId, status).catch((err) => {
-				console.error('Failed to update Qdrant status (non-blocking):', err);
+				logger.error({ error: String(err), applicationId }, 'Failed to update Qdrant status');
 			});
 		}
 
 		return c.json({ success: true, applicationId, status });
 	} catch (error: any) {
-		console.error('Error updating application status:', error);
+		logger.error({ error: error.message || String(error), applicationId }, 'Error updating application status');
 		return c.json({ error: error.message || 'Internal Server Error' }, 500);
 	}
 });
@@ -268,18 +269,18 @@ app.delete('/:id', authMiddleware, async (c) => {
 		// Delete from S3 (non-blocking)
 		if (app.resume_s3_url) {
 			deleteResumeFromS3(app.resume_s3_url).catch((err) => {
-				console.error('Failed to delete resume from S3:', err);
+				logger.error({ error: String(err), applicationId }, 'Failed to delete resume from S3');
 			});
 		}
 
 		// Delete from Qdrant (non-blocking)
 		deleteResumeVector(orgId, applicationId).catch((err) => {
-			console.error('Failed to delete from Qdrant:', err);
+			logger.error({ error: String(err), applicationId }, 'Failed to delete from Qdrant');
 		});
 
 		return c.json({ success: true, applicationId });
 	} catch (error: any) {
-		console.error('Error deleting application:', error);
+		logger.error({ error: error.message || String(error), applicationId }, 'Error deleting application');
 		return c.json({ error: error.message || 'Internal Server Error' }, 500);
 	}
 });
@@ -402,7 +403,7 @@ app.post('/bulk-delete', authMiddleware, async (c) => {
 
 		return c.json({ success: true, deletedCount });
 	} catch (error: any) {
-		console.error('Error bulk deleting applications:', error);
+		logger.error({ error: error.message || String(error) }, 'Error bulk deleting applications');
 		return c.json({ error: error.message || 'Internal Server Error' }, 500);
 	}
 });
@@ -458,7 +459,7 @@ app.get('/position/:positionId', authMiddleware, async (c) => {
 			total: applications.length,
 		});
 	} catch (error: any) {
-		console.error('Error fetching applications:', error);
+		logger.error({ error: error.message || String(error), positionId }, 'Error fetching applications');
 		return c.json({ error: error.message || 'Internal Server Error' }, 500);
 	}
 });
@@ -498,7 +499,7 @@ app.post('/apply', async (c) => {
 		const organizationId = position.organization_id;
 
 		if (!jobDescriptionText) {
-			console.warn('No job description found for position', positionId);
+			logger.warn({ positionId }, 'No job description found for position');
 		}
 
 		// 2. Parse Resume (PDF)
@@ -524,7 +525,7 @@ app.post('/apply', async (c) => {
 
 			resumeText = textParts.join('\n');
 		} catch (e) {
-			console.error('Error parsing PDF:', e);
+			logger.error({ error: String(e) }, 'Error parsing PDF');
 			return c.json({ error: 'Failed to parse resume PDF' }, 400);
 		}
 
@@ -550,24 +551,27 @@ app.post('/apply', async (c) => {
 
 		// 5. If existing application, delete old resume from S3
 		if (existingApplication && existingApplication.resume_s3_url) {
-			console.log(`Deleting old resume for ${normalizedEmail} applying to position ${positionId}`);
+			logger.info({ email: normalizedEmail, positionId }, 'Deleting old resume for re-application');
 			await deleteResumeFromS3(existingApplication.resume_s3_url);
 		}
 
 		// 6. Analyze Resume with AI
 		let analysisResult: any = null;
-		console.log(`Job description length: ${jobDescriptionText.length}, Resume text length: ${resumeText.length}`);
+		logger.info(
+			{ jdLength: jobDescriptionText.length, resumeLength: resumeText.length },
+			'Resumes metadata for AI analysis'
+		);
 
 		if (jobDescriptionText && resumeText) {
 			try {
-				console.log('Starting AI resume analysis...');
+				logger.info('Starting AI resume analysis');
 				analysisResult = await analyzeResume(resumeText, jobDescriptionText);
-				console.log('AI Analysis completed:', JSON.stringify(analysisResult, null, 2));
+				logger.info({ analysis: analysisResult }, 'AI Analysis completed');
 			} catch (e) {
-				console.error('AI Analysis failed:', e);
+				logger.error({ error: String(e) }, 'AI Analysis failed');
 			}
 		} else {
-			console.warn('Skipping AI analysis - missing job description or resume text');
+			logger.warn('Skipping AI analysis - missing job description or resume text');
 		}
 
 		// 7. Upsert Application Record
@@ -589,18 +593,17 @@ app.post('/apply', async (c) => {
                 RETURNING id
             `;
 			applicationId = updateResult[0]?.id;
-			console.log(`Updated application ${applicationId} for ${normalizedEmail} to position ${positionId}`);
+			logger.info({ applicationId, email: normalizedEmail, positionId }, 'Updated application');
 		} else {
 			// Create new application
 			const insertResult = await sql`
-                INSERT INTO application (position_id, email, name, resume_s3_url, cv_analysis, status)
                 VALUES (${positionId}, ${normalizedEmail}, ${name}, ${resumeS3Url}, ${
 				analysisResult ? sql.json(analysisResult) : null
 			}, ${initialStatus})
                 RETURNING id
             `;
 			applicationId = insertResult[0]?.id;
-			console.log(`Created new application ${applicationId} for ${normalizedEmail} to position ${positionId}`);
+			logger.info({ applicationId, email: normalizedEmail, positionId }, 'Created new application');
 		}
 
 		if (!applicationId) {
@@ -624,7 +627,7 @@ app.post('/apply', async (c) => {
 				experienceScore: analysisResult?.experienceScore ?? null,
 				projectsScore: analysisResult?.projectsScore ?? null,
 			}).catch((err) => {
-				console.error('Failed to store resume vector (non-blocking):', err);
+				logger.error({ error: String(err), applicationId }, 'Failed to store resume vector');
 			});
 		}
 
@@ -635,7 +638,7 @@ app.post('/apply', async (c) => {
 			analysis: analysisResult,
 		});
 	} catch (error: any) {
-		console.error('Error processing application:', error);
+		logger.error({ error: error.message || String(error) }, 'Error processing application');
 		return c.json({ error: error.message || 'Internal Server Error' }, 500);
 	}
 });
