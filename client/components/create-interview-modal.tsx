@@ -128,12 +128,17 @@ export default function CreateInterviewModal({
 			toast.error('Please select a future date and time.');
 			return;
 		}
+
+		// Correctly handle local time to ISO string
+		const [year, month, day] = date.split('-').map(Number);
+		const [hour, minute] = time.split(':').map(Number);
+		const scheduledDate = new Date(year, month - 1, day, hour, minute);
+
 		onSubmit({
 			candidateName,
 			candidateEmail,
 			positionId: selectedPositionId,
-			date,
-			time,
+			scheduledStart: scheduledDate.toISOString(),
 			interviewerIds: selectedInterviewerIds,
 			roundTitle: selectedRound?.title,
 			roundType: selectedRound?.type,

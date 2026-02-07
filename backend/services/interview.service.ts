@@ -139,8 +139,9 @@ export const createInterview = async (
 		candidateName: string;
 		candidateEmail: string;
 		positionId: string;
-		date: string;
-		time: string;
+		date?: string;
+		time?: string;
+		scheduledStart?: string;
 		interviewerIds: string[];
 		roundTitle?: string;
 		roundType?: string;
@@ -176,7 +177,7 @@ export const createInterview = async (
 		}
 
 		const candidateId = candidate[0].id;
-		const scheduledStart = new Date(`${data.date}T${data.time}`);
+		const scheduledStart = data.scheduledStart ? new Date(data.scheduledStart) : new Date(`${data.date}T${data.time}`);
 
 		// 2. Create interview
 		// Generate a random access key for the candidate
@@ -263,6 +264,7 @@ export const updateInterview = async (
 		positionId?: string;
 		date?: string;
 		time?: string;
+		scheduledStart?: string;
 		interviewerIds?: string[];
 		roundTitle?: string;
 		roundType?: string;
@@ -308,7 +310,9 @@ export const updateInterview = async (
 		const interviewUpdate: any = {};
 		if (data.positionId) interviewUpdate.position_id = data.positionId;
 		if (data.status) interviewUpdate.status = data.status;
-		if (data.date || data.time) {
+		if (data.scheduledStart) {
+			interviewUpdate.scheduled_start = new Date(data.scheduledStart);
+		} else if (data.date || data.time) {
 			// Need to fetch existing date/time if only one provided
 			const current = await tx`SELECT scheduled_start FROM interview WHERE id = ${interviewId}`;
 			const row = current[0];
