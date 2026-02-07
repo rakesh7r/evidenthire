@@ -1,4 +1,5 @@
 import openai from '../lib/openai';
+import logger from '../lib/logger';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
@@ -18,7 +19,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
 		return response.data[0]?.embedding || [];
 	} catch (error) {
-		console.error('Error generating embedding:', error);
+		logger.error({ error: String(error) }, 'Error generating embedding');
 		throw new Error('Failed to generate embedding');
 	}
 }

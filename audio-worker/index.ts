@@ -139,22 +139,32 @@ const startSQSConsumer = async () => {
 							const body = JSON.parse(message.Body);
 
 							if (body.event === 'track_published') {
-								console.log(`Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`);
+								console.log(
+									`[SQS] Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`
+								);
 							} else if (body.Records) {
 								for (const record of body.Records) {
 									if (!record.s3 || !record.s3.bucket || !record.s3.object) continue;
 
 									const bucket = record.s3.bucket.name;
 									const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
+
+									console.log(`[SQS] S3 Event: File ${key} uploaded to bucket ${bucket}`);
+
 									// We only care about audio chunks (e.g., .ts or .m4a)
 									if (key.endsWith('.ts') || key.endsWith('.m4a') || key.endsWith('.mp3')) {
-										console.log(`Processing chunk: ${key}`);
+										console.log(`[AUDIO-WORKER] START processing chunk: ${key}`);
 										await processAudioChunk(bucket, key);
+										console.log(`[AUDIO-WORKER] FINISH processing chunk: ${key}`);
+									} else {
+										console.log(`[AUDIO-WORKER] Ignoring non-audio file: ${key}`);
 									}
 								}
+							} else {
+								console.log(`[SQS] Received unknown message format:`, body);
 							}
 						} catch (e) {
-							console.error('Error processing message:', e);
+							console.error('[SQS] Error parsing/processing message body:', e);
 						}
 					}
 
@@ -315,12 +325,12 @@ async function processAudioChunk(bucket: string, key: string) {
 			});
 		}
 
-		console.log(`[${key}] Transcribed ${transcriptSegments.length} segments`);
+		console.log(`[${key}] Transcribed ${transcriptSegments.length} segments. Saving to segments.jsonl...`);
 
 		// 5. Extract interview ID from path (first part before /audio)
 		const audioIndex = parts.indexOf('audio');
 		if (audioIndex === -1 || audioIndex === 0) {
-			console.log(`[${key}] 'audio' folder not found in expected position. Skipping.`);
+			console.log(`[${key}] [ERROR] 'audio' folder not found in expected position in path ${key}. Skipping.`);
 			return;
 		}
 
@@ -333,8 +343,9 @@ async function processAudioChunk(bucket: string, key: string) {
 		try {
 			const existing = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: segmentsKey }));
 			existingSegments = await streamToString(existing.Body as Readable);
+			console.log(`[${key}] Found existing segments file at ${segmentsKey}`);
 		} catch (e) {
-			// File doesn't exist yet
+			console.log(`[${key}] No existing segments file found at ${segmentsKey}. Creating new.`);
 		}
 
 		const newLines = transcriptSegments.map((s) => JSON.stringify(s)).join('\n');
@@ -348,11 +359,12 @@ async function processAudioChunk(bucket: string, key: string) {
 				ContentType: 'application/x-ndjson',
 			})
 		);
+		console.log(`[${key}] Successfully uploaded updated segments to s3://${bucket}/${segmentsKey}`);
 
 		// 7. Also generate human-readable transcript (merged and sorted)
 		await generateMergedTranscript(bucket, interviewFolder);
 
-		console.log(`[${key}] Processing complete.`);
+		console.log(`[${key}] Processing of chunk complete.`);
 	} catch (err) {
 		console.error(`Failed to process chunk ${key}:`, err);
 	}
@@ -410,7 +422,9 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 			})
 		);
 
-		console.log(`Updated merged transcript: ${transcriptKey}`);
+		console.log(
+			`[TRANSCRIPT] Successfully updated merged human-readable transcript at s3://${bucket}/${transcriptKey}`
+		);
 	} catch (err) {
 		console.error(`Failed to generate merged transcript:`, err);
 	}

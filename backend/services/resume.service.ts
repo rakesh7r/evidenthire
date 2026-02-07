@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import logger from '../lib/logger';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -86,7 +87,7 @@ export async function deleteResumeFromS3(s3Url: string): Promise<void> {
 	const s3Key = extractS3KeyFromUrl(s3Url);
 
 	if (!s3Key) {
-		console.error('Invalid S3 URL, cannot extract key:', s3Url);
+		logger.error({ s3Url }, 'Invalid S3 URL, cannot extract key');
 		return;
 	}
 
@@ -97,9 +98,9 @@ export async function deleteResumeFromS3(s3Url: string): Promise<void> {
 		});
 
 		await s3Client.send(command);
-		console.log('Deleted resume from S3:', s3Key);
+		logger.info({ s3Key }, 'Deleted resume from S3');
 	} catch (error) {
-		console.error('Error deleting resume from S3:', error);
+		logger.error({ error: String(error), s3Key }, 'Error deleting resume from S3');
 		// Don't throw - we don't want to fail the application update if delete fails
 	}
 }

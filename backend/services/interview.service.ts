@@ -1,4 +1,5 @@
 import { sql } from '../db';
+import logger from '../lib/logger';
 import {
 	notifyInterviewScheduled,
 	notifyInterviewCancelled,
@@ -247,7 +248,7 @@ export const createInterview = async (
 			});
 		}
 	} catch (err) {
-		console.error('Failed to send notification emails:', err);
+		logger.error({ error: String(err) }, 'Failed to send notification emails');
 	}
 
 	return result;
@@ -385,7 +386,7 @@ export const updateInterview = async (
 			});
 		}
 	} catch (err) {
-		console.error('Failed to send update notification:', err);
+		logger.error({ error: String(err) }, 'Failed to send update notification');
 	}
 
 	return result;
@@ -462,7 +463,7 @@ export const deleteInterview = async (userId: string, interviewId: string) => {
 				interviewerEmails: interview.interviewer_emails || [],
 			});
 		} catch (err) {
-			console.error('Failed to send cancellation emails:', err);
+			logger.error({ error: String(err) }, 'Failed to send cancellation emails');
 		}
 	}
 

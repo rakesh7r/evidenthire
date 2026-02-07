@@ -18,13 +18,14 @@ import {
 	type InterviewSession,
 } from './session.service';
 import { getLatestSession } from './session.service';
+import logger from '../lib/logger';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
 
 if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
-	console.warn('LiveKit environment variables are missing. Video calls will not work.');
+	logger.warn('LiveKit environment variables are missing. Video calls will not work.');
 }
 
 const s3Client = new S3Client({
@@ -54,7 +55,7 @@ const getOrCreateSessionFromDb = async (
 	if (!sessionStartTimeCache.has(sessionKey)) {
 		const startTime = new Date(session.started_at).getTime();
 		sessionStartTimeCache.set(sessionKey, startTime);
-		console.log(`Session start time cached for ${sessionKey}: ${startTime}`);
+		logger.info({ sessionKey, startTime }, 'Session start time cached');
 	}
 
 	return { session, sessionId, isNew };
@@ -76,13 +77,9 @@ export const invalidateSessionCache = async (interviewId: string): Promise<void>
 		// Mark session as ended in database
 		await endSession(session.id, durationMs);
 
-		// Clear from local cache
-		const sessionKey = `${interviewId}:session${session.session_number}`;
-		sessionStartTimeCache.delete(sessionKey);
-
-		console.log(`Session ${session.session_number} ended for interview ${interviewId} (duration: ${durationMs}ms)`);
+		logger.info({ sessionNumber: session.session_number, interviewId, durationMs }, 'Session ended and invalidated');
 	} else {
-		console.log(`No active session to invalidate for interview ${interviewId}`);
+		logger.info({ interviewId }, 'No active session to invalidate');
 	}
 
 	// Persist chunk index to database
@@ -96,10 +93,10 @@ export const getLastSessionId = async (interviewId: string): Promise<string | nu
 	const session = await getLatestSession(interviewId);
 	if (session) {
 		const sessionId = `session${session.session_number}`;
-		console.log(`Found session ${sessionId} from DB for interview ${interviewId}`);
+		logger.info({ sessionId, interviewId }, 'Found session from DB');
 		return sessionId;
 	}
-	console.log(`No session found in DB for interview ${interviewId}`);
+	logger.info({ interviewId }, 'No session found in DB');
 	return null;
 };
 
@@ -148,10 +145,10 @@ export const startRoomAudioRecording = async (roomName: string, interviewId: str
 		const egress = await egressClient.startRoomCompositeEgress(roomName, fileOutput, {
 			audioOnly: true,
 		});
-		console.log(`Started egress: ${egress.egressId} for room ${roomName}`);
+		logger.info({ egressId: egress.egressId, roomName }, 'Started room composite egress');
 		return egress;
 	} catch (error) {
-		console.error('Failed to start egress:', error);
+		logger.error({ error: String(error), roomName }, 'Failed to start egress');
 		throw error;
 	}
 };
@@ -253,9 +250,9 @@ export const startTrackAudioRecording = async (
 				ContentType: 'application/json',
 			})
 		);
-		console.log(`Track metadata written to S3: ${trackMetadataKey}`);
+		logger.info({ trackMetadataKey }, 'Track metadata written to S3');
 	} catch (err) {
-		console.error(`Failed to write track metadata to S3:`, err);
+		logger.error({ error: String(err), trackMetadataKey }, 'Failed to write track metadata to S3');
 	}
 
 	// Filename prefix: <interview_id>/audio/<email>
@@ -263,6 +260,8 @@ export const startTrackAudioRecording = async (
 	// Chunk indices continue across sessions
 	const filenamePrefix = `${audioFolderPath}/${email}`;
 	const playlistName = `playlist_${email}.m3u8`;
+
+	logger.info({ s3Bucket, filenamePrefix, playlistName }, '[LIVEKIT] Starting track egress');
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
@@ -294,12 +293,13 @@ export const startTrackAudioRecording = async (
 				audioFrequency: 48000,
 			} as any,
 		});
-		console.log(
-			`Started segmented track egress: ${egress.egressId} for track ${trackId} for ${email} (offset: ${trackStartOffsetMs}ms)`
+		logger.info(
+			{ egressId: egress.egressId, trackId, email, offset: trackStartOffsetMs },
+			'Started segmented track egress'
 		);
 		return egress;
 	} catch (error) {
-		console.error('Failed to start track egress:', error);
+		logger.error({ error: String(error), trackId, email }, 'Failed to start track egress');
 		throw error;
 	}
 };

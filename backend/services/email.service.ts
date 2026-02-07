@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { createEvent, type EventAttributes } from 'ics';
+import logger from '../lib/logger';
 
 // Configure Nodemailer transporter for Brevo
 const transporter = nodemailer.createTransport({
@@ -17,9 +18,7 @@ const transporter = nodemailer.createTransport({
  */
 export const sendEmail = async (to: string | string[], subject: string, html: string, attachments?: any[]) => {
 	if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_PASS) {
-		console.log('Skipping email send - SMTP credentials not set');
-		console.log('To:', to);
-		console.log('Subject:', subject);
+		logger.info({ to, subject }, 'Skipping email send - SMTP credentials not set');
 		return { messageId: 'mock_id' };
 	}
 
@@ -32,10 +31,10 @@ export const sendEmail = async (to: string | string[], subject: string, html: st
 			html,
 			attachments,
 		});
-		console.log('Message sent: %s', info.messageId);
+		logger.info({ messageId: info.messageId }, 'Email message sent');
 		return info;
 	} catch (error) {
-		console.error('Failed to send email:', error);
+		logger.error({ error: String(error) }, 'Failed to send email');
 		throw error;
 	}
 };
@@ -112,7 +111,7 @@ export const notifyInterviewScheduled = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for candidate', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for candidate');
 	}
 
 	// 1. Email to Candidate
@@ -172,7 +171,7 @@ export const notifyInterviewScheduled = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for interviewer', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for interviewer');
 	}
 
 	// 2. Email to Interviewers
@@ -289,7 +288,7 @@ export const notifyInterviewUpdated = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for candidate update', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for candidate update');
 	}
 
 	// 1. Email to Candidate
@@ -344,7 +343,7 @@ export const notifyInterviewUpdated = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for interviewer update', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for interviewer update');
 	}
 
 	// 2. Email to Interviewers

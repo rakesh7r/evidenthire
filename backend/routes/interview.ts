@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthEnv } from '../middleware/auth';
+import logger from '../lib/logger';
 import {
 	getInterviewsByOrg,
 	getInterviewById,
@@ -48,7 +49,7 @@ interviews.get('/public/:id', async (c) => {
 			statusSummary,
 		});
 	} catch (err: any) {
-		console.error(`Error fetching public interview ${id}:`, err);
+		logger.error({ error: String(err), interviewId: id }, 'Error fetching public interview');
 		return c.json({ error: err.message }, 500);
 	}
 });

@@ -12,12 +12,13 @@ import applicationRoute from './routes/application';
 import publicRoute from './routes/public';
 import chatRoute from './routes/chat';
 import { checkAndExpireInterviews, checkAndTimeoutInterviews } from './services/interview-access.service';
+import logger from './lib/logger';
 
-import { logger } from 'hono/logger';
+import { logger as honoLogger } from 'hono/logger';
 
 const app = new Hono({ strict: true });
 
-app.use(logger());
+app.use(honoLogger());
 app.use(
 	'/*',
 	cors({
@@ -52,11 +53,11 @@ app.use('/*', async (c, next) => {
 
 // Check environment variables
 if (!process.env.DATABASE_URL) {
-	console.warn('WARNING: DATABASE_URL is not set. Database operations will fail.');
+	logger.warn('DATABASE_URL is not set. Database operations will fail.');
 } else {
 	// Mask password for logging
 	const maskedUrl = process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':****@');
-	console.log('Using DATABASE_URL:', maskedUrl);
+	logger.info({ url: maskedUrl }, 'Using DATABASE_URL');
 }
 
 // Create v1 router
@@ -83,7 +84,7 @@ v1.get('/', (c) => {
 app.route('/api/v1', v1);
 
 const port = parseInt(process.env.PORT || '8000');
-console.log(`Server is running on port ${port}`);
+logger.info(`Server is running on port ${port}`);
 
 // Start background scheduler for interview lifecycle management
 const SCHEDULER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -94,19 +95,20 @@ async function runScheduledTasks() {
 		const timeoutResult = await checkAndTimeoutInterviews();
 
 		if (expiredResult.expiredCount > 0 || timeoutResult.timedOutCount > 0) {
-			console.log(
-				`Scheduler: Expired ${expiredResult.expiredCount} interviews, timed out ${timeoutResult.timedOutCount} interviews`
+			logger.info(
+				{ expired: expiredResult.expiredCount, timeout: timeoutResult.timedOutCount },
+				'Scheduler: Managed interview lifecycles'
 			);
 		}
 	} catch (error) {
-		console.error('Error running scheduled tasks:', error);
+		logger.error({ error: String(error) }, 'Error running scheduled tasks');
 	}
 }
 
 // Run immediately on startup, then every 5 minutes
 runScheduledTasks();
 setInterval(runScheduledTasks, SCHEDULER_INTERVAL_MS);
-console.log('Interview lifecycle scheduler started (runs every 5 minutes)');
+logger.info('Interview lifecycle scheduler started (runs every 5 minutes)');
 
 export default {
 	port,
