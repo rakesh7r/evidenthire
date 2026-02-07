@@ -48,7 +48,7 @@ app.get('/organizations/:id/positions', async (c) => {
 			if (!orgs || orgs.length === 0) {
 				return c.json([], 200); // Organization not found, so no positions
 			}
-			orgId = orgs[0].id;
+			orgId = orgs[0]!.id;
 		}
 
 		const positions = await sql`
