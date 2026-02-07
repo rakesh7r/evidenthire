@@ -1,12 +1,32 @@
 import Redis from 'ioredis';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const createRedisClient = () => {
+	const commonOptions = {
+		maxRetriesPerRequest: 3,
+		lazyConnect: true,
+	};
+
+	if (process.env.REDIS_HOST_URL) {
+		console.log('Using Redis Cloud configuration');
+		return new Redis({
+			...commonOptions,
+			host: process.env.REDIS_HOST_URL,
+			port: parseInt(process.env.REDIS_PORT || '6379'),
+			username: process.env.REDIS_USERNAME,
+			password: process.env.REDIS_PASSWORD,
+		});
+	}
+
+	const REDIS_URL = process.env.REDIS_URL;
+	if (!REDIS_URL) {
+		throw new Error('REDIS_URL not set');
+	}
+	console.log(`Using Redis URL: ${REDIS_URL.includes('localhost') ? 'localhost' : 'remote'}`);
+	return new Redis(REDIS_URL, commonOptions);
+};
 
 // Create Redis client
-export const redis = new Redis(REDIS_URL, {
-	maxRetriesPerRequest: 3,
-	lazyConnect: true,
-});
+export const redis = createRedisClient();
 
 redis.on('connect', () => {
 	console.log('Redis connected');
@@ -16,10 +36,12 @@ redis.on('error', (err) => {
 	console.error('Redis error:', err);
 });
 
-// Connect to Redis (non-blocking)
-redis.connect().catch((err) => {
+// Connect to Redis (blocking with await)
+try {
+	await redis.connect();
+} catch (err: any) {
 	console.warn('Redis connection failed, chunk indexing will fall back to DB:', err.message);
-});
+}
 
 // Key generators
 const CHUNK_INDEX_KEY = (interviewId: string) => `interview:${interviewId}:chunk_index`;
