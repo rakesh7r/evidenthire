@@ -11,6 +11,7 @@ import {
 	bulkDeleteByStatus,
 	bulkDeleteApplications,
 } from '../services/qdrant.service';
+import { notifyApplicationRejected } from '../services/email.service';
 import { authMiddleware, type AuthEnv } from '../middleware/auth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
@@ -157,9 +158,10 @@ app.put('/:id/status', authMiddleware, async (c) => {
 
 		// Verify application belongs to user's organization
 		const appCheck = await sql`
-            SELECT a.id, a.position_id 
+            SELECT a.id, a.position_id, a.resume_s3_url, a.name, a.email, p.title as position_title, o.name as org_name
             FROM application a
             JOIN position p ON a.position_id = p.id
+            JOIN organization o ON p.organization_id = o.id
             WHERE a.id = ${applicationId} AND p.organization_id = ${orgId}
         `;
 
@@ -167,17 +169,57 @@ app.put('/:id/status', authMiddleware, async (c) => {
 			return c.json({ error: 'Application not found or not accessible' }, 404);
 		}
 
-		// Update status in database
-		await sql`
-            UPDATE application 
-            SET status = ${status}, updated_at = NOW()
-            WHERE id = ${applicationId}
-        `;
+		const app = appCheck[0]!;
 
-		// Update status in Qdrant (non-blocking)
-		updateApplicationStatus(orgId, applicationId, status).catch((err) => {
-			console.error('Failed to update Qdrant status (non-blocking):', err);
-		});
+		if (status === 'rejected') {
+			// Special handling for rejected applications:
+			// 1. Remove from Qdrant
+			// 2. Remove from S3
+			// 3. Update DB status and clear S3 URL
+
+			// Delete from S3 (non-blocking)
+			if (app.resume_s3_url) {
+				deleteResumeFromS3(app.resume_s3_url).catch((err) => {
+					console.error('Failed to delete resume from S3:', err);
+				});
+			}
+
+			// Delete from Qdrant (non-blocking)
+			deleteResumeVector(orgId, applicationId).catch((err) => {
+				console.error('Failed to delete from Qdrant:', err);
+			});
+
+			// Send regret email (non-blocking)
+			if (app.email) {
+				notifyApplicationRejected({
+					candidateEmail: app.email,
+					candidateName: app.name,
+					positionTitle: app.position_title,
+					organizationName: app.org_name,
+				}).catch((err) => {
+					console.error('Failed to send regret email:', err);
+				});
+			}
+
+			// Update status in database
+			await sql`
+                UPDATE application 
+                SET status = 'rejected', resume_s3_url = NULL, updated_at = NOW()
+                WHERE id = ${applicationId}
+            `;
+		} else {
+			// Normal status update
+			await sql`
+                UPDATE application 
+                SET status = ${status}, updated_at = NOW()
+                WHERE id = ${applicationId}
+            `;
+
+			// Update status in Qdrant (non-blocking)
+			updateApplicationStatus(orgId, applicationId, status).catch((err) => {
+				console.error('Failed to update Qdrant status (non-blocking):', err);
+			});
+		}
 
 		return c.json({ success: true, applicationId, status });
 	} catch (error: any) {

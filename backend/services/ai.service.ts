@@ -80,9 +80,11 @@ IMPORTANT SKILL MATCHING RULES:
    - "k8s" = "Kubernetes"
    - "ML" = "Machine Learning"
 
-3. **skillsMatch array**: ONLY include skills that are REQUIRED in the job description. Split compound skills.
+3. **Case Insensitivity**: Match skills regardless of capitalization (e.g., "python" = "Python", "SQL" = "sql").
 
-4. **bonusSkills array**: List additional relevant technical skills found in the resume that are NOT required in the job description but could be advantageous. These do NOT affect the score negatively or positively.
+4. **skillsMatch array**: ONLY include skills that are REQUIRED in the job description. Split compound skills.
+
+5. **bonusSkills array**: List additional relevant technical skills found in the resume that are NOT required in the job description but could be advantageous. These do NOT affect the score negatively or positively.
 
 SCORING CRITERIA (overallScore 0-100):
 - **Skills Match (40%)**: Percentage of required JD skills found in resume

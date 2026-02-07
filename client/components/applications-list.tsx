@@ -1,7 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FileText, Calendar, Brain, ChevronRight, CheckCircle, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import {
+	FileText,
+	Calendar,
+	Brain,
+	ChevronRight,
+	CheckCircle,
+	Loader2,
+	AlertCircle,
+	ExternalLink,
+	Trash2,
+} from 'lucide-react';
 import api from '@/lib/api';
 
 interface CVAnalysis {
@@ -179,12 +189,35 @@ export default function ApplicationsList({ positionId, onSchedule, onTotalChange
 									Shortlisted
 								</div>
 							) : (
-								<button
-									onClick={() => onSchedule(app)}
-									className='flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-500 transition-all active:scale-95'>
-									Schedule Interview
-									<ChevronRight className='h-4 w-4' />
-								</button>
+								<div className='flex items-center gap-2'>
+									<button
+										onClick={async () => {
+											if (
+												confirm(
+													'Are you sure you want to reject this application? This will remove the resume and analysis.'
+												)
+											) {
+												try {
+													await api.put(`/applications/${app.id}/status`, { status: 'rejected' });
+													setApplications((prev) => prev.filter((a) => a.id !== app.id));
+													onTotalChange?.(applications.length - 1);
+												} catch (err) {
+													console.error('Failed to reject application:', err);
+													alert('Failed to reject application');
+												}
+											}
+										}}
+										className='flex items-center gap-2 rounded-lg border border-red-200 dark:border-red-900/30 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all active:scale-95'>
+										<Trash2 className='h-4 w-4' />
+										Reject
+									</button>
+									<button
+										onClick={() => onSchedule(app)}
+										className='flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-orange-500 transition-all active:scale-95'>
+										Schedule Interview
+										<ChevronRight className='h-4 w-4' />
+									</button>
+								</div>
 							)}
 						</div>
 					</div>

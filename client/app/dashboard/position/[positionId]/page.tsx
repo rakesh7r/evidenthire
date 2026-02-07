@@ -7,7 +7,7 @@ import { ArrowLeft, Briefcase, User, AlertCircle, LayoutGrid, Users } from 'luci
 import CandidateInterviews from '@/components/candidate-interviews';
 import ApplicationsList from '@/components/applications-list';
 import SchedulerModal from '@/components/interview-scheduler-modal';
-import InterviewChatbot from '@/components/interview-chatbot';
+import RecruitingChatbot from '@/components/recruiting-chatbot';
 import { ThemeToggle } from '@/components/theme-toggle';
 import api from '@/lib/api';
 
@@ -198,9 +198,6 @@ export default function PositionDetailsPage() {
 
 				{/* Right Sidebar */}
 				<div className='space-y-6'>
-					{/* Chatbot Widget */}
-					<InterviewChatbot />
-
 					{/* Position Details Card */}
 					<div className='rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm'>
 						<div className='p-4 border-b border-slate-100 dark:border-slate-800'>
@@ -281,6 +278,14 @@ export default function PositionDetailsPage() {
 					positionId={positionId}
 					onClose={() => setIsSchedulerOpen(false)}
 					onSuccess={handleScheduleSuccess}
+				/>
+			)}
+
+			{/* AI Recruiting Chatbot */}
+			{position && (
+				<RecruitingChatbot
+					positionId={positionId}
+					positionTitle={position.title}
 				/>
 			)}
 		</div>
