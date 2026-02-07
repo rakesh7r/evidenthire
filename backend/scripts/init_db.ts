@@ -47,6 +47,7 @@ export const createDatabaseTables = async () => {
               id          uuid primary key DEFAULT gen_random_uuid(),
               email       text not null,
               name        text,
+              cv_analysis jsonb,
               created_at  timestamptz not null default now()
             )`;
 		console.log('Candidate table created successfully');

@@ -85,7 +85,7 @@ export const getPositionById = async (userId: string, positionId: string) => {
 
 export const createPosition = async (
 	userId: string,
-	data: { title: string; requirements?: any; rounds?: any; status?: string }
+	data: { title: string; requirements?: any; rounds?: any; status?: string; job_description?: string }
 ) => {
 	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
 	const userData = user[0];
@@ -98,11 +98,13 @@ export const createPosition = async (
 		throw new Error('Unauthorized: Only admins and recruiters can create positions');
 	}
 
+	const jobDescription = data.job_description || '';
+
 	const result = await sql`
-        INSERT INTO position (organization_id, title, requirements, rounds, status)
+        INSERT INTO position (organization_id, title, requirements, rounds, status, job_description)
         VALUES (${userData.organization_id}, ${data.title}, ${data.requirements || {}}, ${data.rounds || []}, ${
 		data.status || 'open'
-	})
+	}, ${jobDescription})
         RETURNING *
     `;
 	return result[0];
@@ -111,7 +113,7 @@ export const createPosition = async (
 export const updatePosition = async (
 	userId: string,
 	positionId: string,
-	data: { title?: string; requirements?: any; rounds?: any; status?: string }
+	data: { title?: string; requirements?: any; rounds?: any; status?: string; job_description?: string }
 ) => {
 	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
 	const userData = user[0];
@@ -129,6 +131,11 @@ export const updatePosition = async (
 	if (data.requirements !== undefined) updatePayload.requirements = data.requirements;
 	if (data.rounds !== undefined) updatePayload.rounds = data.rounds;
 	if (data.status !== undefined) updatePayload.status = data.status;
+
+	// Handle job description update
+	if (data.job_description !== undefined) {
+		updatePayload.job_description = data.job_description;
+	}
 
 	if (Object.keys(updatePayload).length === 0) {
 		return await getPositionById(userId, positionId);

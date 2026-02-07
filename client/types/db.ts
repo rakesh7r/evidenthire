@@ -63,6 +63,7 @@ export interface Candidate {
 	id: string; // UUID
 	email: string;
 	name?: string | null;
+	cv_analysis?: any | null; // JSONB
 	created_at: string; // ISO Date string
 }
 
@@ -73,6 +74,7 @@ export interface Position {
 	requirements?: RequirementsSchema | null; // JSONB
 	rounds?: Round[] | null; // JSONB
 	status: PositionStatus;
+	job_description?: string | null;
 	created_at: string; // ISO Date string
 }
 

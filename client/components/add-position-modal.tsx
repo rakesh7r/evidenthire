@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, X, Briefcase, FileText, CheckCircle, Tag, Sliders, Brain, Send, Sparkles } from 'lucide-react';
+import api from '@/lib/api';
 
 interface PositionFormProps {
 	onClose: () => void;
@@ -21,7 +22,7 @@ export interface RequirementsSchema {
 // Current DB schema is just JSONB, but we will serialize this structure into it.
 export interface PositionFormData {
 	title: string;
-	description: string;
+	job_description: string;
 	requirements: RequirementsSchema;
 	rounds: Round[];
 	status: 'open' | 'closed';
@@ -39,7 +40,7 @@ const INTERVIEW_TYPES_OPTIONS = [
 export default function AddPositionModal({ onClose, onSubmit, initialData }: PositionFormProps) {
 	const [title, setTitle] = useState(initialData?.title || '');
 	const [status, setStatus] = useState<'open' | 'closed'>(initialData?.status || 'open');
-	const [description, setDescription] = useState(initialData?.description || '');
+	const [jobDescription, setJobDescription] = useState(initialData?.job_description || '');
 
 	// AI Job Description State
 	const [aiPrompt, setAiPrompt] = useState('');
@@ -64,19 +65,31 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 		}
 	);
 
-	// Placeholder AI generation handler (UI only, backend not implemented)
-	const handleGenerateDescription = () => {
+	// AI generation handler
+	const handleGenerateDescription = async () => {
 		if (!aiPrompt.trim()) return;
 		setIsGenerating(true);
-		// TODO: Implement backend AI call
-		// For now, just simulate a delay and show a placeholder
-		setTimeout(() => {
-			setDescription(
-				`[AI Generated Job Description based on: "${aiPrompt}"]\n\nThis is a placeholder. Connect to an AI backend to generate real job descriptions.`
-			);
+
+		try {
+			const res = await api.post('/ai/generate-description', {
+				title,
+				requirements: {
+					skills,
+					evaluation_weights: weights,
+				},
+				prompt: aiPrompt,
+			});
+
+			if (res.data.description) {
+				setJobDescription(res.data.description);
+			}
+		} catch (error: any) {
+			console.error('Error generating description:', error);
+			// Show error toast if available, or just log for now
+		} finally {
 			setIsGenerating(false);
 			setAiPrompt('');
-		}, 1000);
+		}
 	};
 
 	const handleAddSkill = () => {
@@ -121,7 +134,7 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 		if (e) e.preventDefault();
 		onSubmit({
 			title,
-			description,
+			job_description: jobDescription,
 			requirements: {
 				skills,
 				evaluation_weights: weights,
@@ -402,8 +415,8 @@ export default function AddPositionModal({ onClose, onSubmit, initialData }: Pos
 								</h4>
 								<div className='flex-1 flex flex-col min-h-[400px]'>
 									<textarea
-										value={description}
-										onChange={(e) => setDescription(e.target.value)}
+										value={jobDescription}
+										onChange={(e) => setJobDescription(e.target.value)}
 										placeholder='Enter a detailed job description here...
 
 Include:
@@ -436,7 +449,7 @@ Include:
 											type='button'
 											onClick={handleGenerateDescription}
 											disabled={isGenerating || !aiPrompt.trim()}
-											className='flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all'>
+											className='flex items-center justify-center gap-2 rounded-lg bg-linear-to-r from-purple-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all'>
 											{isGenerating ? (
 												<div className='h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
 											) : (
