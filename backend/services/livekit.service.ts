@@ -17,6 +17,7 @@ import {
 	upsertSessionParticipant,
 	type InterviewSession,
 } from './session.service';
+import { getLatestSession } from './session.service';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
@@ -86,6 +87,28 @@ export const invalidateSessionCache = async (interviewId: string): Promise<void>
 
 	// Persist chunk index to database
 	await persistChunkIndex(interviewId);
+};
+
+/**
+ * Get the last session ID for an interview (from database)
+ */
+export const getLastSessionId = async (interviewId: string): Promise<string | null> => {
+	const session = await getLatestSession(interviewId);
+	if (session) {
+		const sessionId = `session${session.session_number}`;
+		console.log(`Found session ${sessionId} from DB for interview ${interviewId}`);
+		return sessionId;
+	}
+	console.log(`No session found in DB for interview ${interviewId}`);
+	return null;
+};
+
+/**
+ * Get the database session record for an interview
+ */
+export const getLastSessionRecord = async (interviewId: string): Promise<InterviewSession | null> => {
+	const { getLatestSession } = await import('./session.service');
+	return await getLatestSession(interviewId);
 };
 
 export const createAccessToken = async (
