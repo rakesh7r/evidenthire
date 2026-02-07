@@ -2,10 +2,71 @@ import { Hono } from 'hono';
 import { sql } from '../db';
 import { analyzeResume } from '../services/ai.service';
 import { uploadResumeToS3, deleteResumeFromS3 } from '../services/resume.service';
+import { authMiddleware, type AuthEnv } from '../middleware/auth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-const app = new Hono();
+const app = new Hono<AuthEnv>();
 
+/**
+ * GET /applications/position/:positionId
+ * Fetch all applications for a specific position (requires auth)
+ */
+app.get('/position/:positionId', authMiddleware, async (c) => {
+	const positionId = c.req.param('positionId');
+	const user = c.get('user');
+
+	try {
+		// Verify user has access to this position (belongs to same organization)
+		const userOrg = await sql`
+            SELECT organization_id FROM user_account WHERE id = ${user.id}
+        `;
+
+		if (!userOrg || userOrg.length === 0) {
+			return c.json({ error: 'User organization not found' }, 403);
+		}
+
+		const orgId = userOrg[0]!.organization_id;
+
+		// Verify position belongs to user's organization
+		const positionCheck = await sql`
+            SELECT id FROM position 
+            WHERE id = ${positionId} AND organization_id = ${orgId}
+        `;
+
+		if (!positionCheck || positionCheck.length === 0) {
+			return c.json({ error: 'Position not found or not accessible' }, 404);
+		}
+
+		// Fetch all applications for this position
+		const applications = await sql`
+            SELECT 
+                id,
+                email,
+                name,
+                resume_s3_url,
+                cv_analysis,
+                status,
+                created_at,
+                updated_at
+            FROM application
+            WHERE position_id = ${positionId}
+            ORDER BY created_at DESC
+        `;
+
+		return c.json({
+			applications,
+			total: applications.length,
+		});
+	} catch (error: any) {
+		console.error('Error fetching applications:', error);
+		return c.json({ error: error.message || 'Internal Server Error' }, 500);
+	}
+});
+
+/**
+ * POST /applications/apply
+ * Submit a new job application (public - no auth required)
+ */
 app.post('/apply', async (c) => {
 	try {
 		const body = await c.req.parseBody();
@@ -94,12 +155,18 @@ app.post('/apply', async (c) => {
 
 		// 6. Analyze Resume with AI
 		let analysisResult = null;
+		console.log(`Job description length: ${jobDescriptionText.length}, Resume text length: ${resumeText.length}`);
+
 		if (jobDescriptionText && resumeText) {
 			try {
+				console.log('Starting AI resume analysis...');
 				analysisResult = await analyzeResume(resumeText, jobDescriptionText);
+				console.log('AI Analysis completed:', JSON.stringify(analysisResult, null, 2));
 			} catch (e) {
 				console.error('AI Analysis failed:', e);
 			}
+		} else {
+			console.warn('Skipping AI analysis - missing job description or resume text');
 		}
 
 		// 7. Upsert Application Record

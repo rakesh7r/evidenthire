@@ -40,6 +40,9 @@ export default function PositionDetailsPage() {
 	const [activeTab, setActiveTab] = useState<'applications' | 'interviews'>('applications');
 	const [isSchedulerOpen, setIsSchedulerOpen] = useState(false);
 	const [selectedCandidateName, setSelectedCandidateName] = useState('');
+	const [selectedCandidateEmail, setSelectedCandidateEmail] = useState('');
+	const [applicationsCount, setApplicationsCount] = useState(0);
+	const [refreshKey, setRefreshKey] = useState(0);
 
 	useEffect(() => {
 		if (!positionId) return;
@@ -60,7 +63,12 @@ export default function PositionDetailsPage() {
 
 	const handleScheduleInterview = (app: any) => {
 		setSelectedCandidateName(app.name);
+		setSelectedCandidateEmail(app.email);
 		setIsSchedulerOpen(true);
+	};
+
+	const handleScheduleSuccess = () => {
+		setRefreshKey((prev) => prev + 1);
 	};
 
 	if (loading) {
@@ -168,10 +176,15 @@ export default function PositionDetailsPage() {
 							<div className='flex items-center justify-between mb-4'>
 								<h2 className='text-lg font-semibold text-slate-900 dark:text-white'>Recent Applications</h2>
 								<span className='text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md'>
-									Total: 4
+									Total: {applicationsCount}
 								</span>
 							</div>
-							<ApplicationsList onSchedule={handleScheduleInterview} />
+							<ApplicationsList
+								key={refreshKey}
+								positionId={positionId}
+								onSchedule={handleScheduleInterview}
+								onTotalChange={setApplicationsCount}
+							/>
 						</div>
 					) : (
 						<div className='animate-in fade-in slide-in-from-right-4 duration-300'>
@@ -264,7 +277,10 @@ export default function PositionDetailsPage() {
 			{isSchedulerOpen && (
 				<SchedulerModal
 					candidateName={selectedCandidateName}
+					candidateEmail={selectedCandidateEmail}
+					positionId={positionId}
 					onClose={() => setIsSchedulerOpen(false)}
+					onSuccess={handleScheduleSuccess}
 				/>
 			)}
 		</div>

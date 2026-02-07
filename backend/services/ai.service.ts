@@ -57,7 +57,7 @@ export const analyzeResume = async (
 	resumeText: string,
 	jobDescription: string
 ): Promise<{
-	score: number;
+	overallScore: number;
 	summary: string;
 	strengths: string[];
 	weaknesses: string[];
@@ -66,7 +66,7 @@ export const analyzeResume = async (
 	const systemPrompt = `You are an expert ATS (Applicant Tracking System) and technical recruiter. Your task is to analyze a candidate's resume against a specific job description.
     
     Provide a structured JSON output with the following fields:
-    - score: A number between 0 and 100 representing the overall match.
+    - overallScore: A number between 0 and 100 representing the overall match.
     - summary: A brief summary of the candidate's suitability.
     - strengths: A list of key strengths relevant to the role.
     - weaknesses: A list of potential gaps or missing requirements.
