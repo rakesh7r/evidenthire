@@ -125,6 +125,9 @@ export const createDatabaseTables = async () => {
               total_duration_ms integer,
               -- Configuration (can be set per-interview, defaults set in code)
               max_duration_minutes integer DEFAULT 120,
+              -- Audio storage (session-less)
+              audio_folder_path text,
+              last_chunk_index  integer DEFAULT 0,
               created_at        timestamptz not null default now()
             )`;
 		console.log('Interview table created successfully');

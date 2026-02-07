@@ -1,19 +1,18 @@
 import {
 	AccessToken,
 	EgressClient,
-	EncodedFileOutput,
 	EncodedFileType,
 	SegmentedFileOutput,
 	SegmentedFileProtocol,
 	S3Upload,
 	AudioCodec,
 } from 'livekit-server-sdk';
-import { S3Client, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
+import { getOrCreateAudioFolder, persistChunkIndex } from './interview-audio.service';
 import {
 	getOrCreateSession,
 	getActiveSession,
-	getLatestSession,
 	endSession,
 	upsertSessionParticipant,
 	type InterviewSession,
@@ -36,12 +35,11 @@ const s3Client = new S3Client({
 });
 
 // In-memory cache for session start times (for quick offset calculation)
-// This is still useful for performance, but the source of truth is the database
 const sessionStartTimeCache: Map<string, number> = new Map();
 
 /**
  * Get or create a session using the database
- * Returns the session and whether it's a new session
+ * Sessions are still used for participant tracking, but audio goes to shared folder
  */
 const getOrCreateSessionFromDb = async (
 	interviewId: string,
@@ -62,54 +60,8 @@ const getOrCreateSessionFromDb = async (
 };
 
 /**
- * Get the session start time from cache or database
- */
-const getSessionStartTime = async (interviewId: string, sessionId: string): Promise<number> => {
-	const sessionKey = `${interviewId}:${sessionId}`;
-
-	// Check cache first
-	if (sessionStartTimeCache.has(sessionKey)) {
-		return sessionStartTimeCache.get(sessionKey)!;
-	}
-
-	// Cache miss - get from database
-	const sessionNumber = parseInt(sessionId.replace('session', ''), 10);
-	const sessions = await getLatestSession(interviewId);
-	if (sessions && sessions.session_number === sessionNumber) {
-		const startTime = new Date(sessions.started_at).getTime();
-		sessionStartTimeCache.set(sessionKey, startTime);
-		return startTime;
-	}
-
-	// Fallback to current time
-	const now = Date.now();
-	sessionStartTimeCache.set(sessionKey, now);
-	return now;
-};
-
-/**
- * Get the last session ID for an interview (from database)
- */
-export const getLastSessionId = async (interviewId: string): Promise<string | null> => {
-	const session = await getLatestSession(interviewId);
-	if (session) {
-		const sessionId = `session${session.session_number}`;
-		console.log(`Found session ${sessionId} from DB for interview ${interviewId}`);
-		return sessionId;
-	}
-	console.log(`No session found in DB for interview ${interviewId}`);
-	return null;
-};
-
-/**
- * Get the database session record for an interview
- */
-export const getLastSessionRecord = async (interviewId: string): Promise<InterviewSession | null> => {
-	return await getLatestSession(interviewId);
-};
-
-/**
  * Invalidate/end a session (call when interview room ends)
+ * Also persists the chunk index to database
  */
 export const invalidateSessionCache = async (interviewId: string): Promise<void> => {
 	// Get the active session from database
@@ -131,6 +83,9 @@ export const invalidateSessionCache = async (interviewId: string): Promise<void>
 	} else {
 		console.log(`No active session to invalidate for interview ${interviewId}`);
 	}
+
+	// Persist chunk index to database
+	await persistChunkIndex(interviewId);
 };
 
 export const createAccessToken = async (
@@ -161,15 +116,12 @@ export const startRoomAudioRecording = async (roomName: string, interviewId: str
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
-	// The destination will be a file named after the interview
-	// Note: RoomCompositeEgress supports MP4, OGG, MP3.
 	const fileOutput: any = {
 		fileType: EncodedFileType.MP3,
 		filepath: `interview-${interviewId}.mp3`,
 	};
 
 	try {
-		// startRoomCompositeEgress expects (roomName, output, options)
 		const egress = await egressClient.startRoomCompositeEgress(roomName, fileOutput, {
 			audioOnly: true,
 		});
@@ -207,9 +159,11 @@ export const startTrackAudioRecording = async (
 		return;
 	}
 
-	// Get or create session from database (replaces in-memory cache)
-	const { session, sessionId, isNew } = await getOrCreateSessionFromDb(interviewId, s3Bucket);
-	const basePath = session.s3_session_path || `${interviewId}/sessions/${sessionId}`;
+	// Get or create the audio folder (session-less, single folder per interview)
+	const { audioFolderPath } = await getOrCreateAudioFolder(interviewId);
+
+	// Still create session for participant tracking (but not for audio paths)
+	const { session, sessionId } = await getOrCreateSessionFromDb(interviewId, s3Bucket);
 
 	// Extract email and role from identity
 	let email = 'unknown';
@@ -226,14 +180,20 @@ export const startTrackAudioRecording = async (
 		}
 	}
 
-	// Get session start time from database/cache
-	const sessionStartTime = await getSessionStartTime(interviewId, sessionId);
+	// Get session start time for offset calculation
+	const sessionKey = `${interviewId}:${sessionId}`;
+	let sessionStartTime = sessionStartTimeCache.get(sessionKey);
+	if (!sessionStartTime) {
+		sessionStartTime = new Date(session.started_at).getTime();
+		sessionStartTimeCache.set(sessionKey, sessionStartTime);
+	}
+
 	const trackStartTime = Date.now();
 	const trackStartOffsetMs = trackStartTime - sessionStartTime;
 
-	// Store participant in database
-	const s3AudioPrefix = `${basePath}/${email}`;
-	const s3MetadataUri = `${basePath}/track_${email}.json`;
+	// Store participant in database (still linked to session for tracking)
+	const s3AudioPrefix = `${audioFolderPath}/${email}`;
+	const s3MetadataUri = `${audioFolderPath}/track_${email}.json`;
 
 	await upsertSessionParticipant(session.id, participantIdentity || email, {
 		email,
@@ -244,14 +204,15 @@ export const startTrackAudioRecording = async (
 		s3MetadataUri,
 	});
 
-	// Write track metadata to S3 for timeline anchoring (keep for backward compatibility)
+	// Write track metadata to S3 for timeline anchoring
+	// Now stored in the shared audio folder (not session-specific)
 	const trackMetadata = {
 		trackId,
 		participantIdentity,
 		email,
 		role,
-		sessionId,
-		sessionDbId: session.id,
+		interviewId,
+		sessionId, // Keep for reference
 		sessionNumber: session.session_number,
 		sessionStartTime,
 		trackStartTime,
@@ -259,7 +220,7 @@ export const startTrackAudioRecording = async (
 		createdAt: new Date().toISOString(),
 	};
 
-	const trackMetadataKey = `${basePath}/track_${email}.json`;
+	const trackMetadataKey = `${audioFolderPath}/track_${email}.json`;
 	try {
 		await s3Client.send(
 			new PutObjectCommand({
@@ -274,9 +235,10 @@ export const startTrackAudioRecording = async (
 		console.error(`Failed to write track metadata to S3:`, err);
 	}
 
-	// Filename prefix: .../sessionX/<email>
+	// Filename prefix: <interview_id>/audio/<email>
 	// LiveKit will append _0000.ts, _0001.ts, etc.
-	const filenamePrefix = `${basePath}/${email}`;
+	// Chunk indices continue across sessions
+	const filenamePrefix = `${audioFolderPath}/${email}`;
 	const playlistName = `playlist_${email}.m3u8`;
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
@@ -304,13 +266,13 @@ export const startTrackAudioRecording = async (
 		const egress = await egressClient.startTrackCompositeEgress(roomName, output, {
 			audioTrackId: trackId,
 			encodingOptions: {
-				audioCodec: AudioCodec.AAC, // AAC is standard for HLS, produces .ts or .m4s segments
+				audioCodec: AudioCodec.AAC,
 				audioBitrate: 128000,
 				audioFrequency: 48000,
 			} as any,
 		});
 		console.log(
-			`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId} for ${email} (offset: ${trackStartOffsetMs}ms)`
+			`Started segmented track egress: ${egress.egressId} for track ${trackId} for ${email} (offset: ${trackStartOffsetMs}ms)`
 		);
 		return egress;
 	} catch (error) {

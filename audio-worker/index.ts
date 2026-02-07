@@ -23,7 +23,9 @@ interface TrackMetadata {
 	participantIdentity: string;
 	email: string;
 	role: string;
-	sessionId: string;
+	interviewId: string;
+	sessionId?: string;
+	sessionNumber?: number;
 	sessionStartTime: number;
 	trackStartTime: number;
 	trackStartOffsetMs: number;
@@ -173,8 +175,8 @@ const startSQSConsumer = async () => {
 	}
 };
 
-async function getTrackMetadata(bucket: string, sessionPath: string, email: string): Promise<TrackMetadata | null> {
-	const metadataKey = `${sessionPath}/track_${email}.json`;
+async function getTrackMetadata(bucket: string, audioFolderPath: string, email: string): Promise<TrackMetadata | null> {
+	const metadataKey = `${audioFolderPath}/track_${email}.json`;
 	try {
 		const res = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: metadataKey }));
 		const content = await streamToString(res.Body as Readable);
@@ -186,9 +188,10 @@ async function getTrackMetadata(bucket: string, sessionPath: string, email: stri
 }
 
 async function processAudioChunk(bucket: string, key: string) {
+	// New path structure: <interview_id>/audio/<email>_00001.ts
 	const parts = key.split('/');
 	const filename = parts.pop();
-	const sessionPath = parts.join('/'); // .../sessions/sessionX
+	const audioFolderPath = parts.join('/'); // <interview_id>/audio
 	console.log(`[${key}] Starting processing...`);
 
 	try {
@@ -206,10 +209,10 @@ async function processAudioChunk(bucket: string, key: string) {
 			console.log(`[${key}] Could not extract email from filename. Skipping.`);
 			return;
 		}
-		const playlistKey = `${sessionPath}/playlist_${email}.m3u8`;
+		const playlistKey = `${audioFolderPath}/playlist_${email}.m3u8`;
 
 		// 1. Get track metadata for timeline anchoring
-		const trackMetadata = await getTrackMetadata(bucket, sessionPath, email);
+		const trackMetadata = await getTrackMetadata(bucket, audioFolderPath, email);
 		const trackStartOffsetMs = trackMetadata?.trackStartOffsetMs || 0;
 		const role = trackMetadata?.role || 'unknown';
 
@@ -314,22 +317,17 @@ async function processAudioChunk(bucket: string, key: string) {
 
 		console.log(`[${key}] Transcribed ${transcriptSegments.length} segments`);
 
-		// 5. Extract path components
-		const sessionsIndex = parts.indexOf('sessions');
-		if (sessionsIndex === -1) {
-			console.log(`[${key}] 'sessions' folder not found. Skipping.`);
+		// 5. Extract interview ID from path (first part before /audio)
+		const audioIndex = parts.indexOf('audio');
+		if (audioIndex === -1 || audioIndex === 0) {
+			console.log(`[${key}] 'audio' folder not found in expected position. Skipping.`);
 			return;
 		}
 
-		const interviewFolder = parts.slice(0, sessionsIndex).join('/');
-		const sessionFolderName = parts[sessionsIndex + 1];
-		if (!sessionFolderName) {
-			console.log(`[${key}] Could not extract session folder name.`);
-			return;
-		}
+		const interviewFolder = parts.slice(0, audioIndex).join('/');
 
-		// 6. Append segments to JSON Lines file (for merging later)
-		const segmentsKey = `${interviewFolder}/transcripts/${sessionFolderName}_segments.jsonl`;
+		// 6. Append segments to JSON Lines file (single file per interview, not per session)
+		const segmentsKey = `${interviewFolder}/transcripts/segments.jsonl`;
 
 		let existingSegments = '';
 		try {
@@ -352,7 +350,7 @@ async function processAudioChunk(bucket: string, key: string) {
 		);
 
 		// 7. Also generate human-readable transcript (merged and sorted)
-		await generateMergedTranscript(bucket, interviewFolder, sessionFolderName);
+		await generateMergedTranscript(bucket, interviewFolder);
 
 		console.log(`[${key}] Processing complete.`);
 	} catch (err) {
@@ -360,9 +358,9 @@ async function processAudioChunk(bucket: string, key: string) {
 	}
 }
 
-async function generateMergedTranscript(bucket: string, interviewFolder: string, sessionFolderName: string) {
-	const segmentsKey = `${interviewFolder}/transcripts/${sessionFolderName}_segments.jsonl`;
-	const transcriptKey = `${interviewFolder}/transcripts/${sessionFolderName}.txt`;
+async function generateMergedTranscript(bucket: string, interviewFolder: string) {
+	const segmentsKey = `${interviewFolder}/transcripts/segments.jsonl`;
+	const transcriptKey = `${interviewFolder}/transcripts/transcript.txt`;
 
 	try {
 		// Read all segments
