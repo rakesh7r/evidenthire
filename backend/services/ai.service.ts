@@ -57,31 +57,70 @@ export const analyzeResume = async (
 	resumeText: string,
 	jobDescription: string
 ): Promise<{
-	score: number;
+	overallScore: number;
 	summary: string;
 	strengths: string[];
 	weaknesses: string[];
 	skillsMatch: { skill: string; match: boolean }[];
+	bonusSkills: string[];
+	experienceScore: number;
+	projectsScore: number;
 }> => {
-	const systemPrompt = `You are an expert ATS (Applicant Tracking System) and technical recruiter. Your task is to analyze a candidate's resume against a specific job description.
-    
-    Provide a structured JSON output with the following fields:
-    - score: A number between 0 and 100 representing the overall match.
-    - summary: A brief summary of the candidate's suitability.
-    - strengths: A list of key strengths relevant to the role.
-    - weaknesses: A list of potential gaps or missing requirements.
-    - skillsMatch: An array of objects showing which required skills from the JD are present in the resume. Format: { skill: "skill name", match: true/false }.
-    
-    Be objective and strict but fair. Focus on technical skills, experience, and relevant keywords.`;
+	const systemPrompt = `You are an expert ATS (Applicant Tracking System) and technical recruiter. Your task is to analyze a candidate's resume against a specific job description with PARTIAL SKILL MATCHING support.
+
+IMPORTANT SKILL MATCHING RULES:
+1. **Partial Matching**: If the job description requires a compound skill like "Data Structures and Algorithms", split it into individual skills and match each separately:
+   - If resume has "Data Structures" → mark "Data Structures" as match: true
+   - If resume lacks "Algorithms" → mark "Algorithms" as match: false
+   
+2. **Skill Variations**: Consider variations and synonyms as matches:
+   - "React.js" = "React" = "ReactJS"
+   - "Node.js" = "Node" = "NodeJS"
+   - "AWS" = "Amazon Web Services"
+   - "k8s" = "Kubernetes"
+   - "ML" = "Machine Learning"
+
+3. **Case Insensitivity**: Match skills regardless of capitalization (e.g., "python" = "Python", "SQL" = "sql").
+
+4. **skillsMatch array**: ONLY include skills that are REQUIRED in the job description. Split compound skills.
+
+5. **bonusSkills array**: List additional relevant technical skills found in the resume that are NOT required in the job description but could be advantageous. These do NOT affect the score negatively or positively.
+
+SCORING CRITERIA (overallScore 0-100):
+- **Skills Match (40%)**: Percentage of required JD skills found in resume
+- **Relevant Experience (35%)**: Years of experience, job titles, companies, relevant work history
+- **Projects & Achievements (25%)**: Relevant projects, certifications, achievements mentioned
+
+Provide these additional scores (0-100 each):
+- experienceScore: How well does their experience match the role requirements?
+- projectsScore: How relevant are their projects/achievements?
+
+Provide a structured JSON output with:
+- overallScore: Weighted score (0-100)
+- summary: Brief summary of candidate suitability
+- strengths: Key strengths relevant to the role
+- weaknesses: Gaps or missing requirements (focus on JD requirements)
+- skillsMatch: Array of { skill: "skill name", match: true/false } for EACH individual skill from JD
+- bonusSkills: Array of additional skills from resume not in JD (as strings)
+- experienceScore: Experience match score (0-100)
+- projectsScore: Projects/achievements score (0-100)
+
+Be objective, thorough, and fair.`;
 
 	const userMessage = `
-    Job Description:
-    ${jobDescription}
-    
-    Candidate Resume Text:
-    ${resumeText}
-    
-    Please analyze this resume against the job description and return the JSON analysis.`;
+Job Description:
+${jobDescription}
+
+Candidate Resume Text:
+${resumeText}
+
+Analyze this resume against the job description. Remember to:
+1. Split compound skills (e.g., "Data Structures and Algorithms" → separate entries)
+2. Use partial matching for skills
+3. List bonus skills separately (don't penalize for extra skills)
+4. Focus scoring on JD requirements
+
+Return the JSON analysis.`;
 
 	try {
 		const response = await openai.chat.completions.create({
@@ -95,7 +134,19 @@ export const analyzeResume = async (
 		});
 
 		const content = response.choices[0]?.message?.content || '{}';
-		return JSON.parse(content);
+		const parsed = JSON.parse(content);
+
+		// Ensure all expected fields exist with defaults
+		return {
+			overallScore: parsed.overallScore ?? 0,
+			summary: parsed.summary ?? '',
+			strengths: parsed.strengths ?? [],
+			weaknesses: parsed.weaknesses ?? [],
+			skillsMatch: parsed.skillsMatch ?? [],
+			bonusSkills: parsed.bonusSkills ?? [],
+			experienceScore: parsed.experienceScore ?? 0,
+			projectsScore: parsed.projectsScore ?? 0,
+		};
 	} catch (error) {
 		console.error('Error analyzing resume:', error);
 		throw new Error('Failed to analyze resume via AI');

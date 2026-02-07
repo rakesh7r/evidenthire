@@ -76,6 +76,22 @@ export const createDatabaseTables = async () => {
     */
 		console.log('Position table created successfully');
 		// =========================
+		// APPLICATION (tracks job applications with resumes)
+		// =========================
+		await sql`CREATE TABLE IF NOT EXISTS application (
+              id               uuid primary key DEFAULT gen_random_uuid(),
+              position_id      uuid references position(id) NOT NULL,
+              email            text not null,
+              name             text,
+              resume_s3_url    text,
+              cv_analysis      jsonb,
+              status           text check (status in ('pending','reviewed','shortlisted','rejected')) DEFAULT 'pending',
+              created_at       timestamptz not null default now(),
+              updated_at       timestamptz not null default now(),
+              UNIQUE(email, position_id)
+            )`;
+		console.log('Application table created successfully');
+		// =========================
 		// INTERVIEW
 		// =========================
 		await sql`CREATE TABLE IF NOT EXISTS interview (

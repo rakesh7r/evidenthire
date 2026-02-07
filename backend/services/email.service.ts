@@ -408,3 +408,28 @@ export const resendCandidateReminder = async (data: {
         `
 	);
 };
+
+/**
+ * Notify candidate about application rejection
+ */
+export const notifyApplicationRejected = async (data: {
+	candidateEmail: string;
+	candidateName: string;
+	positionTitle: string;
+	organizationName?: string;
+}) => {
+	const orgName = data.organizationName || 'The Recruitment Team';
+	const subject = `Update on your application for ${data.positionTitle}`;
+
+	const content = `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <p>Hi ${data.candidateName},</p>
+            <p>Thank you for giving us the opportunity to consider your application for the <strong>${data.positionTitle}</strong> role.</p>
+            <p>We have reviewed your application and qualifications. While your background is impressive, we have decided to move forward with other candidates who more closely align with our current needs for this position.</p>
+            <p>We appreciate your interest in joining our team and wish you the best in your job search.</p>
+            <p>Sincerely,<br>${orgName}</p>
+        </div>
+    `;
+
+	return await sendEmail(data.candidateEmail, subject, content);
+};
