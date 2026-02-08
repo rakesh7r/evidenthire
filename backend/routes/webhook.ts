@@ -97,8 +97,8 @@ webhook.post('/', async (c) => {
 			case 'room_finished':
 				logger.info({ roomName }, '[LIVEKIT-WEBHOOK] Room finished: Processing session end');
 
-				if (process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL) {
-					// Send session_ended event to transcript worker queue
+				if (process.env.AWS_SQS_QUEUE_URL) {
+					// Send session_ended event to AUDIO worker queue
 					// We no longer use session IDs, just interview ID and timestamp
 					const payload = {
 						event: 'session_ended',
@@ -109,11 +109,11 @@ webhook.post('/', async (c) => {
 					try {
 						await sqsClient.send(
 							new SendMessageCommand({
-								QueueUrl: process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL,
+								QueueUrl: process.env.AWS_SQS_QUEUE_URL,
 								MessageBody: JSON.stringify(payload),
 							})
 						);
-						logger.info({ interviewId }, '[LIVEKIT-WEBHOOK] Session ended event sent to transcript queue');
+						logger.info({ interviewId }, '[LIVEKIT-WEBHOOK] Session ended event sent to audio worker queue');
 					} catch (e) {
 						logger.error({ error: String(e), interviewId }, 'Failed to send session_ended to SQS');
 					}

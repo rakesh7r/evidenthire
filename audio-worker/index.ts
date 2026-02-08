@@ -509,29 +509,11 @@ async function handleSessionEnd(interviewId: string) {
 		console.warn(`[SessionEnd] Could not generate final transcript artifact for ${interviewId}`);
 	}
 
-	const transcriptQueueUrl = process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL;
-	if (!transcriptQueueUrl) {
-		console.error('[SessionEnd] AWS_SQS_TRANSCRIPT_QUEUE_URL not set. Cannot notify transcript worker.');
-		return;
-	}
-
-	// 2. Notify transcript worker
-	const payload = {
-		event: 'transcript_ready',
-		interviewId,
-		timestamp: new Date().toISOString(),
-	};
-
-	try {
-		await sqsClient.send(
-			new SendMessageCommand({
-				QueueUrl: transcriptQueueUrl,
-				MessageBody: JSON.stringify(payload),
-			})
-		);
-		console.log(`[SessionEnd] Sent transcript_ready event to ${transcriptQueueUrl}`);
-	} catch (err) {
-		console.error(`[SessionEnd] Failed to send transcript_ready event:`, err);
+	// 2. Previously notified transcript worker, now processing locally.
+	// The artifact is already printed above.
+	// Future: Add AI analysis or other post-processing here using `finalArtifact`.
+	if (finalArtifact) {
+		console.log(`[SessionEnd] Transcript ready for local processing/AI analysis.`);
 	}
 }
 
