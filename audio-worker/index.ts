@@ -10,7 +10,7 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
 import { processTranscript } from './transcript-processor';
-import type { TranscriptPart } from './transcript-processor';
+import type { TranscriptPart, TranscriptArtifact } from './transcript-processor';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -481,6 +481,8 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 			})
 		);
 		console.log(`[MERGE] Saved structured artifact to ${fullJsonParamsKey}`);
+
+		return processedArtifact;
 	} catch (e) {
 		console.error(`[MERGE] Error merging transcripts for ${interviewFolder}:`, e);
 	}
@@ -495,7 +497,17 @@ async function handleSessionEnd(interviewId: string) {
 
 	// 1. Force a final merge of the transcript to ensure consistency
 	console.log(`[SessionEnd] Performing final transcript merge for ${interviewId}`);
-	await generateMergedTranscript(S3_BUCKET, interviewId);
+	const finalArtifact = await generateMergedTranscript(S3_BUCKET, interviewId);
+
+	if (finalArtifact) {
+		console.log(`\n${'='.repeat(60)}`);
+		console.log(`FINAL TRANSCRIPT JSON for Interview: ${interviewId}`);
+		console.log(`${'='.repeat(60)}`);
+		console.log(JSON.stringify(finalArtifact, null, 2));
+		console.log(`${'='.repeat(60)}\n`);
+	} else {
+		console.warn(`[SessionEnd] Could not generate final transcript artifact for ${interviewId}`);
+	}
 
 	const transcriptQueueUrl = process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL;
 	if (!transcriptQueueUrl) {
