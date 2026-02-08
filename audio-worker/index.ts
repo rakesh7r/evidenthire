@@ -502,6 +502,20 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string,
 		);
 		console.log(`[MERGE] Saved structured artifact to ${fullJsonParamsKey}`);
 
+		if (processedArtifact.report) {
+			const reportParamsKey = `${interviewFolder}/transcripts/report.json`;
+
+			await s3Client.send(
+				new PutObjectCommand({
+					Bucket: bucket,
+					Key: reportParamsKey,
+					Body: JSON.stringify(processedArtifact.report, null, 2),
+					ContentType: 'application/json',
+				})
+			);
+			console.log(`[MERGE] Saved analysis report to ${reportParamsKey}`);
+		}
+
 		return processedArtifact;
 	} catch (e) {
 		console.error(`[MERGE] Error merging transcripts for ${interviewFolder}:`, e);
