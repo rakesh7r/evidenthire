@@ -49,10 +49,18 @@ webhook.post('/', async (c) => {
 						trackSid: event.track?.sid,
 						type: event.track?.type,
 						participant: event.participant?.identity,
+						trackTypeTypeOf: typeof event.track?.type,
 					},
 					'[LIVEKIT-WEBHOOK] Track published'
 				);
-				if (event.track?.type === TrackType.AUDIO) {
+
+				// Check for AUDIO type (handle both enum and string cases just in case)
+				// TrackType.AUDIO is usually 0, but sometimes webhooks send strings "AUDIO"
+				const isAudio =
+					event.track?.type === TrackType.AUDIO ||
+					(typeof event.track?.type === 'string' && event.track?.type === 'AUDIO');
+
+				if (isAudio && event.track?.sid) {
 					const payload = {
 						event: 'track_published',
 						roomName,
@@ -61,14 +69,33 @@ webhook.post('/', async (c) => {
 						timestamp: new Date().toISOString(),
 					};
 
-					await sqsClient.send(
-						new SendMessageCommand({
-							QueueUrl: process.env.AWS_SQS_QUEUE_URL!,
-							MessageBody: JSON.stringify(payload),
-						})
+					logger.info(
+						{ roomName, trackSid: event.track.sid, interviewId },
+						'[LIVEKIT-WEBHOOK] Starting audio recording for track'
 					);
-					logger.info({ trackSid: event.track.sid }, '[LIVEKIT-WEBHOOK] Track published event sent to SQS');
-					await startTrackAudioRecording(roomName, event.track.sid, interviewId, event.participant?.identity);
+
+					try {
+						await sqsClient.send(
+							new SendMessageCommand({
+								QueueUrl: process.env.AWS_SQS_QUEUE_URL!,
+								MessageBody: JSON.stringify(payload),
+							})
+						);
+						logger.info({ trackSid: event.track.sid }, '[LIVEKIT-WEBHOOK] Track published event sent to SQS');
+
+						await startTrackAudioRecording(roomName, event.track.sid, interviewId, event.participant?.identity);
+						logger.info({ trackSid: event.track.sid }, '[LIVEKIT-WEBHOOK] Successfully started track audio recording');
+					} catch (err: any) {
+						logger.error(
+							{ error: String(err), trackSid: event.track?.sid },
+							'[LIVEKIT-WEBHOOK] Failed to process track_published'
+						);
+					}
+				} else {
+					logger.info(
+						{ type: event.track?.type, isAudio },
+						'[LIVEKIT-WEBHOOK] Skipping track (not AUDIO or missing SID)'
+					);
 				}
 				break;
 

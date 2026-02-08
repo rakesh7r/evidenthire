@@ -29,7 +29,7 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
 }
 
 const s3Client = new S3Client({
-	region: process.env.AWS_REGION || 'us-east-1',
+	region: process.env.AWS_REGION || 'ap-south-1',
 	credentials: {
 		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
 		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -166,16 +166,21 @@ export const startTrackAudioRecording = async (
 	const s3Bucket = process.env.AWS_S3_BUCKET;
 	const s3AccessKey = process.env.AWS_ACCESS_KEY_ID;
 	const s3Secret = process.env.AWS_SECRET_ACCESS_KEY;
-	const s3Region = process.env.AWS_REGION || 'us-east-1';
+	const s3Region = process.env.AWS_REGION || 'ap-south-1';
+
+	logger.info(
+		{ s3Bucket, s3Region, hasAccessKey: !!s3AccessKey, hasSecret: !!s3Secret },
+		'[LIVEKIT-SERVICE] Starting track egress setup'
+	);
 
 	if (!s3Bucket || !s3AccessKey || !s3Secret) {
-		console.warn('S3 credentials missing. Cannot start direct S3 egress.');
+		logger.warn('S3 credentials missing. Cannot start direct S3 egress.');
 		return;
 	}
 
 	const metadata = await getInterviewMetadataForRecording(interviewId);
 	if (!metadata) {
-		console.warn(`Metadata not found for interview ${interviewId}, cannot construct path.`);
+		logger.warn(`Metadata not found for interview ${interviewId}, cannot construct path.`);
 		return;
 	}
 
