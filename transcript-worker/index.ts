@@ -154,7 +154,9 @@ async function processSessionEnd(interviewId: string) {
 	try {
 		// Fetch the transcript.txt from S3
 		const transcriptKey = `${interviewId}/transcripts/transcript.txt`;
-		log('INFO', `Fetching transcript from: s3://${S3_BUCKET}/${transcriptKey}`);
+		const transcriptJsonKey = `${interviewId}/transcripts/transcript.json`;
+
+		log('INFO', `Fetching transcript text from: s3://${S3_BUCKET}/${transcriptKey}`);
 
 		const transcriptRes = await s3Client.send(
 			new GetObjectCommand({
@@ -164,11 +166,25 @@ async function processSessionEnd(interviewId: string) {
 		);
 		const transcriptText = await streamToString(transcriptRes.Body as Readable);
 
-		log('INFO', `\n--- INTERVIEW TRANSCRIPT START ---`);
+		log('INFO', `\n--- INTERVIEW TRANSCRIPT START (TEXT) ---`);
 		console.log(transcriptText);
-		log('INFO', `--- INTERVIEW TRANSCRIPT END ---\n`);
+		log('INFO', `--- INTERVIEW TRANSCRIPT END (TEXT) ---\n`);
 
-		// Also fetch metadata/segments just to show summary if needed, but text is primary req
+		try {
+			log('INFO', `Fetching transcript JSON from: s3://${S3_BUCKET}/${transcriptJsonKey}`);
+			const transcriptJsonRes = await s3Client.send(
+				new GetObjectCommand({
+					Bucket: S3_BUCKET,
+					Key: transcriptJsonKey,
+				})
+			);
+			const transcriptJson = await streamToString(transcriptJsonRes.Body as Readable);
+			log('INFO', `\n--- INTERVIEW TRANSCRIPT START (JSON) ---`);
+			console.log(transcriptJson.substring(0, 1000) + '... (truncated)');
+			log('INFO', `--- INTERVIEW TRANSCRIPT END (JSON) ---\n`);
+		} catch (e) {
+			log('WARN', `Could not fetch JSON transcript: ${e}`);
+		}
 	} catch (err: any) {
 		if (err.name === 'NoSuchKey') {
 			log('WARN', `No transcript found for interview ${interviewId}. It may have been empty or failed to generate.`);
