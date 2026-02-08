@@ -10,14 +10,8 @@ import {
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
 import { getOrCreateAudioFolder, persistChunkIndex } from './interview-audio.service';
-import {
-	getOrCreateSession,
-	getActiveSession,
-	endSession,
-	upsertSessionParticipant,
-	type InterviewSession,
-} from './session.service';
-import { getLatestSession } from './session.service';
+import { sql } from '../db';
+import { redis } from '../redis';
 import logger from '../lib/logger';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -36,76 +30,42 @@ const s3Client = new S3Client({
 	},
 });
 
-// In-memory cache for session start times (for quick offset calculation)
-const sessionStartTimeCache: Map<string, number> = new Map();
-
 /**
- * Get or create a session using the database
- * Sessions are still used for participant tracking, but audio goes to shared folder
+ * Get interview start time (T0) from DB or Redis
+ * This serves as the anchor for calculating audio offsets properly
  */
-const getOrCreateSessionFromDb = async (
-	interviewId: string,
-	s3Bucket: string
-): Promise<{ session: InterviewSession; sessionId: string; isNew: boolean }> => {
-	const { session, isNew } = await getOrCreateSession(interviewId, s3Bucket);
-	const sessionId = `session${session.session_number}`;
-
-	// Cache the session start time for quick access
-	const sessionKey = `${interviewId}:${sessionId}`;
-	if (!sessionStartTimeCache.has(sessionKey)) {
-		const startTime = new Date(session.started_at).getTime();
-		sessionStartTimeCache.set(sessionKey, startTime);
-		logger.info({ sessionKey, startTime }, 'Session start time cached');
+const getInterviewStartTime = async (interviewId: string): Promise<number> => {
+	const cacheKey = `interview:${interviewId}:start_time`;
+	try {
+		const cachedTime = await redis.get(cacheKey);
+		if (cachedTime) {
+			logger.info({ interviewId, time: cachedTime }, 'Got interview start time from Redis');
+			return parseInt(cachedTime, 10);
+		}
+	} catch (e) {
+		logger.warn({ error: String(e) }, 'Redis get error');
 	}
 
-	return { session, sessionId, isNew };
-};
+	// Fetch from DB
+	const result = await sql`SELECT first_join_at FROM interview WHERE id = ${interviewId}`;
 
-/**
- * Invalidate/end a session (call when interview room ends)
- * Also persists the chunk index to database
- */
-export const invalidateSessionCache = async (interviewId: string): Promise<void> => {
-	// Get the active session from database
-	const session = await getActiveSession(interviewId);
-	if (session) {
-		// Calculate duration
-		const startTime = new Date(session.started_at).getTime();
-		const endTime = Date.now();
-		const durationMs = endTime - startTime;
-
-		// Mark session as ended in database
-		await endSession(session.id, durationMs);
-
-		logger.info({ sessionNumber: session.session_number, interviewId, durationMs }, 'Session ended and invalidated');
+	// If first_join_at is null (first person joining), use NOW
+	let startTime: number;
+	if (result[0]?.first_join_at) {
+		startTime = new Date(result[0].first_join_at).getTime();
 	} else {
-		logger.info({ interviewId }, 'No active session to invalidate');
+		startTime = Date.now();
+		// We don't update DB here; recordParticipantJoin in access service does that
 	}
 
-	// Persist chunk index to database
-	await persistChunkIndex(interviewId);
-};
-
-/**
- * Get the last session ID for an interview (from database)
- */
-export const getLastSessionId = async (interviewId: string): Promise<string | null> => {
-	const session = await getLatestSession(interviewId);
-	if (session) {
-		const sessionId = `session${session.session_number}`;
-		logger.info({ sessionId, interviewId }, 'Found session from DB');
-		return sessionId;
+	// Cache it
+	try {
+		await redis.set(cacheKey, startTime);
+	} catch (e) {
+		logger.warn({ error: String(e) }, 'Redis set error');
 	}
-	logger.info({ interviewId }, 'No session found in DB');
-	return null;
-};
 
-/**
- * Get the database session record for an interview
- */
-export const getLastSessionRecord = async (interviewId: string): Promise<InterviewSession | null> => {
-	const { getLatestSession } = await import('./session.service');
-	return await getLatestSession(interviewId);
+	return startTime;
 };
 
 export const createAccessToken = async (
@@ -187,9 +147,6 @@ export const startTrackAudioRecording = async (
 	// Get or create the audio folder (session-less, single folder per interview)
 	const { audioFolderPath } = await getOrCreateAudioFolder(interviewId);
 
-	// Still create session for participant tracking (but not for audio paths)
-	const { session, sessionId } = await getOrCreateSessionFromDb(interviewId, s3Bucket);
-
 	// Extract email and role from identity
 	let email = 'unknown';
 	let role: 'candidate' | 'interviewer' | 'observer' = 'interviewer';
@@ -205,29 +162,35 @@ export const startTrackAudioRecording = async (
 		}
 	}
 
-	// Get session start time for offset calculation
-	const sessionKey = `${interviewId}:${sessionId}`;
-	let sessionStartTime = sessionStartTimeCache.get(sessionKey);
-	if (!sessionStartTime) {
-		sessionStartTime = new Date(session.started_at).getTime();
-		sessionStartTimeCache.set(sessionKey, sessionStartTime);
-	}
-
+	// Get interview start time for offset calculation
+	const interviewStartTime = await getInterviewStartTime(interviewId);
 	const trackStartTime = Date.now();
-	const trackStartOffsetMs = trackStartTime - sessionStartTime;
+	const trackStartOffsetMs = trackStartTime - interviewStartTime;
 
-	// Store participant in database (still linked to session for tracking)
 	const s3AudioPrefix = `${audioFolderPath}/${email}`;
 	const s3MetadataUri = `${audioFolderPath}/track_${email}.json`;
 
-	await upsertSessionParticipant(session.id, participantIdentity || email, {
+	// Store active participant info in Redis for easy lookup during processing
+	// This replaces the session_participant table for now
+	const redisKey = `interview:${interviewId}:track:${trackId}`;
+	const trackInfo = {
 		email,
 		role,
 		trackId,
 		trackOffsetMs: trackStartOffsetMs,
 		s3AudioPrefix,
 		s3MetadataUri,
-	});
+		joinedAt: new Date().toISOString(),
+	};
+
+	try {
+		await redis.set(redisKey, JSON.stringify(trackInfo));
+		// Set expiry for 24 hours just in case
+		await redis.expire(redisKey, 86400);
+		logger.info({ redisKey }, 'Stored track metadata in Redis');
+	} catch (error) {
+		logger.error({ error: String(error), redisKey }, 'Failed to store track metadata in Redis');
+	}
 
 	// Write track metadata to S3 for timeline anchoring
 	// Now stored in the shared audio folder (not session-specific)
@@ -237,12 +200,11 @@ export const startTrackAudioRecording = async (
 		email,
 		role,
 		interviewId,
-		sessionId, // Keep for reference
-		sessionNumber: session.session_number,
-		sessionStartTime,
+		interviewStartTime,
 		trackStartTime,
 		trackStartOffsetMs,
 		createdAt: new Date().toISOString(),
+		// session info removed
 	};
 
 	const trackMetadataKey = `${audioFolderPath}/track_${email}.json`;

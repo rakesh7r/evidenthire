@@ -1,12 +1,7 @@
 import { Hono } from 'hono';
 import { TrackType, WebhookReceiver } from 'livekit-server-sdk';
-import {
-	startRoomAudioRecording,
-	startTrackAudioRecording,
-	invalidateSessionCache,
-	getLastSessionId,
-	getLastSessionRecord,
-} from '../services/livekit.service';
+import { startRoomAudioRecording, startTrackAudioRecording } from '../services/livekit.service';
+import { persistChunkIndex } from '../services/interview-audio.service';
 import { endInterview } from '../services/interview-access.service';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import logger from '../lib/logger';
@@ -102,37 +97,30 @@ webhook.post('/', async (c) => {
 			case 'room_finished':
 				logger.info({ roomName }, '[LIVEKIT-WEBHOOK] Room finished: Processing session end');
 
-				// Get the session record from database (more reliable than string ID)
-				const sessionRecord = await getLastSessionRecord(interviewId);
-				const sessionId = sessionRecord
-					? `session${sessionRecord.session_number}`
-					: await getLastSessionId(interviewId);
-
-				if (sessionId && process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL) {
-					// Send session_ended event to transcript worker queue with DB record info
+				if (process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL) {
+					// Send session_ended event to transcript worker queue
+					// We no longer use session IDs, just interview ID and timestamp
 					const payload = {
 						event: 'session_ended',
 						interviewId,
-						sessionId,
-						sessionDbId: sessionRecord?.id, // Include database ID for more reliable lookups
-						sessionNumber: sessionRecord?.session_number,
 						timestamp: new Date().toISOString(),
 					};
 
-					await sqsClient.send(
-						new SendMessageCommand({
-							QueueUrl: process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL,
-							MessageBody: JSON.stringify(payload),
-						})
-					);
-					logger.info(
-						{ sessionId, sessionDbId: sessionRecord?.id },
-						'[LIVEKIT-WEBHOOK] Session ended event sent to transcript queue'
-					);
+					try {
+						await sqsClient.send(
+							new SendMessageCommand({
+								QueueUrl: process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL,
+								MessageBody: JSON.stringify(payload),
+							})
+						);
+						logger.info({ interviewId }, '[LIVEKIT-WEBHOOK] Session ended event sent to transcript queue');
+					} catch (e) {
+						logger.error({ error: String(e), interviewId }, 'Failed to send session_ended to SQS');
+					}
 				}
 
-				// Invalidate session cache so next session gets a new ID (this is now async)
-				await invalidateSessionCache(interviewId);
+				// Persist chunk index to database
+				await persistChunkIndex(interviewId);
 
 				// Auto-end the interview if it wasn't manually ended by the interviewer
 				// This is a normal room finish, so participants left
