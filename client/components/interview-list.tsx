@@ -166,8 +166,17 @@ export default function InterviewList() {
 		}
 	};
 
-	const handleDeleteInterview = async (id: string) => {
-		if (!confirm('Are you sure you want to delete this interview?')) return;
+	// Delete confirmation modal state
+	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+	const handleDeleteClick = (id: string) => {
+		setDeleteConfirmId(id);
+	};
+
+	const confirmDelete = async () => {
+		if (!deleteConfirmId) return;
+		const id = deleteConfirmId;
+		setDeleteConfirmId(null);
 
 		const toastId = toast.loading('Deleting interview...');
 		try {
@@ -179,6 +188,10 @@ export default function InterviewList() {
 			const errorMessage = err.response?.data?.error || 'Failed to delete interview';
 			toast.error(errorMessage, { id: toastId });
 		}
+	};
+
+	const cancelDelete = () => {
+		setDeleteConfirmId(null);
 	};
 
 	const handleCloseModal = () => {
@@ -328,7 +341,7 @@ export default function InterviewList() {
 													<Edit2 className='h-4 w-4' />
 												</button>
 												<button
-													onClick={() => handleDeleteInterview(interview.id)}
+													onClick={() => handleDeleteClick(interview.id)}
 													className='p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors'
 													title='Delete Interview'>
 													<Trash2 className='h-4 w-4' />
@@ -364,6 +377,43 @@ export default function InterviewList() {
 							: undefined
 					}
 				/>
+			)}
+
+			{/* Custom Delete Confirmation Modal */}
+			{deleteConfirmId && (
+				<div
+					className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm'
+					onClick={cancelDelete}>
+					<div
+						className='w-full max-w-md overflow-hidden rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-xl ring-1 ring-black/5 transition-all'
+						onClick={(e) => e.stopPropagation()}>
+						<div className='flex items-center gap-4'>
+							<div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30'>
+								<AlertTriangle className='h-6 w-6 text-red-600 dark:text-red-400' />
+							</div>
+							<div>
+								<h3 className='text-lg font-semibold leading-6 text-slate-900 dark:text-white'>Delete Interview</h3>
+								<p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>
+									Are you sure you want to delete this interview? This action cannot be undone.
+								</p>
+							</div>
+						</div>
+						<div className='mt-6 flex justify-end gap-3'>
+							<button
+								type='button'
+								onClick={cancelDelete}
+								className='rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-700'>
+								Cancel
+							</button>
+							<button
+								type='button'
+								onClick={confirmDelete}
+								className='rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600'>
+								Delete
+							</button>
+						</div>
+					</div>
+				</div>
 			)}
 		</div>
 	);
