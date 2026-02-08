@@ -24,9 +24,8 @@ interface TrackMetadata {
 	email: string;
 	role: string;
 	interviewId: string;
-	sessionId?: string;
-	sessionNumber?: number;
-	sessionStartTime: number;
+	// Session fields removed
+	interviewStartTime: number;
 	trackStartTime: number;
 	trackStartOffsetMs: number;
 	createdAt: string;
@@ -188,6 +187,7 @@ const startSQSConsumer = async () => {
 async function getTrackMetadata(bucket: string, audioFolderPath: string, email: string): Promise<TrackMetadata | null> {
 	const metadataKey = `${audioFolderPath}/track_${email}.json`;
 	try {
+		console.log(`[METADATA] Fetching ${metadataKey} from bucket ${bucket}`);
 		const res = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: metadataKey }));
 		const content = await streamToString(res.Body as Readable);
 		return JSON.parse(content) as TrackMetadata;
@@ -201,8 +201,19 @@ async function processAudioChunk(bucket: string, key: string) {
 	// New path structure: <interview_id>/audio/<email>_00001.ts
 	const parts = key.split('/');
 	const filename = parts.pop();
-	const audioFolderPath = parts.join('/'); // <interview_id>/audio
-	console.log(`[${key}] Starting processing...`);
+	// Construct audio folder path correctly
+	const audioIndex = parts.indexOf('audio');
+	if (audioIndex === -1) {
+		console.log(`[${key}] Skipping: 'audio' folder not found in path.`);
+		return;
+	}
+
+	// <interview_id>/audio
+	const audioFolderPath = parts.slice(0, audioIndex + 1).join('/');
+	// <interview_id>
+	const interviewFolder = parts.slice(0, audioIndex).join('/');
+
+	console.log(`[${key}] Starting processing... Folder: ${audioFolderPath}, Interview: ${interviewFolder}`);
 
 	try {
 		if (!filename) return;
@@ -260,7 +271,10 @@ async function processAudioChunk(bucket: string, key: string) {
 			await new Promise<void>((resolve, reject) => {
 				ffmpeg(tempTsFile)
 					.toFormat('mp3')
-					.on('error', (err) => reject(err))
+					.on('error', (err) => {
+						console.error('ffmpeg conversion error:', err);
+						reject(err);
+					})
 					.on('end', () => resolve())
 					.save(tempMp3File);
 			});
@@ -327,15 +341,6 @@ async function processAudioChunk(bucket: string, key: string) {
 
 		console.log(`[${key}] Transcribed ${transcriptSegments.length} segments. Saving to segments.jsonl...`);
 
-		// 5. Extract interview ID from path (first part before /audio)
-		const audioIndex = parts.indexOf('audio');
-		if (audioIndex === -1 || audioIndex === 0) {
-			console.log(`[${key}] [ERROR] 'audio' folder not found in expected position in path ${key}. Skipping.`);
-			return;
-		}
-
-		const interviewFolder = parts.slice(0, audioIndex).join('/');
-
 		// 6. Append segments to JSON Lines file (single file per interview, not per session)
 		const segmentsKey = `${interviewFolder}/transcripts/segments.jsonl`;
 
@@ -375,6 +380,7 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 	const transcriptKey = `${interviewFolder}/transcripts/transcript.txt`;
 
 	try {
+		console.log(`[MERGE] Generating merged transcript for ${interviewFolder}`);
 		// Read all segments
 		const segmentsRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: segmentsKey }));
 		const segmentsStr = await streamToString(segmentsRes.Body as Readable);
