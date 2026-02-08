@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import api from '@/lib/api';
 import {
 	ChevronDown,
 	ChevronRight,
@@ -25,7 +26,28 @@ interface InterviewRound {
 	status: 'completed' | 'ongoing' | 'scheduled' | 'failed' | 'cancelled';
 	interviewer: string;
 	analysis: string;
+	reportUrl?: string | null;
 }
+
+// ...
+
+// In JSX, around line 239 (now shifted due to refactoring, likely around line 240 in previous context, but I need to find the button)
+// I will target the button rendering block.
+
+// The target content for replacement:
+/*
+													{interview.status === 'completed' && (
+														<button className='flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-orange-500 shadow-lg shadow-orange-600/10'>
+															<Eye className='h-3.5 w-3.5' />
+															VIEW REPORT
+														</button>
+													)}
+*/
+
+// I will do two replacements. First imports and interface. Then button.
+// WAIT, I can only do ONE replace per call if contigous? No, `multi_replace` is for non-contiguous.
+// The tool `replace_file_content` is for single contiguous block.
+// I'll use `multi_replace_file_content`.
 
 interface CandidateGroup {
 	id: string;
@@ -42,72 +64,66 @@ export default function CandidateInterviews({
 	positionId: string;
 	onReschedule?: (candidateName: string, candidateEmail: string, interviewType?: string) => void;
 }) {
-	// Dummy data for now
-	const [candidates] = useState<CandidateGroup[]>([
-		{
-			id: '1',
-			name: 'Alex Rivera',
-			email: 'alex.rivera@example.com',
-			overallStatus: 'In Progress',
-			interviews: [
-				{
-					id: 'i1',
-					type: 'Technical Screening',
-					date: '2024-05-15',
-					time: '10:00 AM',
-					status: 'completed',
-					interviewer: 'Sarah Chen',
-					analysis:
-						'Strong React fundamentals. Good understanding of state management and hooks. Answered system design questions effectively.',
-				},
-				{
-					id: 'i2',
-					type: 'System Design',
-					date: '2024-05-18',
-					time: '02:00 PM',
-					status: 'completed',
-					interviewer: 'Michael Scott',
-					analysis:
-						'Excellent architectural thinking. Handled scalability trade-offs well. Some room for improvement in database indexing details.',
-				},
-			],
-		},
-		{
-			id: '2',
-			name: 'Jordan Smith',
-			email: 'jordan.smith@techcorp.io',
-			overallStatus: 'Highly Recommended',
-			interviews: [
-				{
-					id: 'i3',
-					type: 'Technical Screening',
-					date: '2024-05-14',
-					time: '11:30 AM',
-					status: 'completed',
-					interviewer: 'Sarah Chen',
-					analysis:
-						'Exceptional problem-solving skills. Implemented complex algorithms with ease. Clean and efficient code.',
-				},
-			],
-		},
-		{
-			id: '3',
-			name: 'Casey Wang',
-			email: 'casey.wang@startup.com',
-			overallStatus: 'Scheduled',
-			interviews: [
-				{
-					id: 'i4',
-					type: 'Culture Fit',
-					date: '2024-05-20',
-					time: '09:00 AM',
-					status: 'cancelled',
-					interviewer: 'Emma Wilson',
-					analysis: 'Interview cancelled by candidate.',
-				},
-			],
-		},
-	]);
+	// State
+	const [candidates, setCandidates] = useState<CandidateGroup[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState('');
+
+	const fetchInterviews = useCallback(async () => {
+		try {
+			setLoading(true);
+			const { data } = await api.get(`/interviews/position/${positionId}`);
+
+			// Process and group interviews by candidate
+			const groupedCandidates: Record<string, CandidateGroup> = {};
+
+			data.forEach((interview: any) => {
+				const candidateId = interview.candidate_id;
+
+				if (!groupedCandidates[candidateId]) {
+					groupedCandidates[candidateId] = {
+						id: candidateId,
+						name: interview.candidate_name,
+						email: interview.candidate_email,
+						overallStatus: 'Active', // Logic to determine overall status can be improved
+						interviews: [],
+					};
+				}
+
+				const dateObj = new Date(interview.scheduled_start);
+				const formattedDate = dateObj.toLocaleDateString();
+				const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+				// Determine interviewer name (first one or formatted list)
+				const interviewerName =
+					interview.interviewers && interview.interviewers.length > 0
+						? interview.interviewers[0].full_name
+						: 'Unassigned';
+
+				groupedCandidates[candidateId].interviews.push({
+					id: interview.id,
+					type: interview.round_title || interview.round_type || 'Interview',
+					date: formattedDate,
+					time: formattedTime,
+					status: interview.status,
+					interviewer: interviewerName,
+					analysis: interview.report_s3_url ? 'Report Available' : 'No analysis yet.',
+					reportUrl: interview.report_s3_url,
+				});
+			});
+
+			setCandidates(Object.values(groupedCandidates));
+		} catch (err: any) {
+			console.error('Failed to fetch interviews:', err);
+			setError('Failed to load interviews');
+		} finally {
+			setLoading(false);
+		}
+	}, [positionId]);
+
+	useEffect(() => {
+		fetchInterviews();
+	}, [fetchInterviews]);
 
 	const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState('');
@@ -236,7 +252,14 @@ export default function CandidateInterviews({
 														</button>
 													)}
 													{interview.status === 'completed' && (
-														<button className='flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-orange-500 shadow-lg shadow-orange-600/10'>
+														<button
+															onClick={() => interview.reportUrl && window.open(interview.reportUrl, '_blank')}
+															disabled={!interview.reportUrl}
+															className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white transition-all shadow-lg ${
+																interview.reportUrl
+																	? 'bg-orange-600 hover:bg-orange-500 shadow-orange-600/10 cursor-pointer'
+																	: 'bg-slate-400 cursor-not-allowed opacity-70'
+															}`}>
 															<Eye className='h-3.5 w-3.5' />
 															VIEW REPORT
 														</button>

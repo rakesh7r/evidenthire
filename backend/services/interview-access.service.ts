@@ -337,7 +337,10 @@ export async function endInterview(
 		// Check minimum duration for "completed" status
 		if (durationMinutes < ACCESS_CONFIG.MIN_DURATION_FOR_COMPLETE_MINUTES) {
 			finalStatus = 'cancelled'; // Short interviews are treated as cancelled/aborted
-			logger.info({ interviewId, durationMinutes }, 'Interview was too short, marking as cancelled');
+			logger.info({ interviewId, durationMinutes }, 'Interview was too short (< 10 mins), marking as cancelled');
+		} else {
+			// Explicitly ensure status is completed for duration >= 10 mins
+			finalStatus = 'completed';
 		}
 	} else {
 		// No one ever joined

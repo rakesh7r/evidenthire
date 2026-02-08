@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthEnv } from '../middleware/auth';
 import logger from '../lib/logger';
 import {
-	getInterviewsByOrg,
 	getInterviewById,
 	createInterview,
 	updateInterview,
@@ -10,6 +9,8 @@ import {
 	getPublicInterviewById,
 	verifyInterviewAccess,
 	resendInvitation,
+	getInterviewsByOrg,
+	getInterviewsByPosition,
 } from '../services/interview.service';
 import { createAccessToken } from '../services/livekit.service';
 import { verifyToken } from '../middleware/auth';
@@ -196,6 +197,23 @@ interviews.get('/', async (c) => {
 		return c.json(result);
 	} catch (err: any) {
 		console.error('Error fetching interviews:', err);
+		return c.json({ error: err.message }, 500);
+	}
+});
+
+// ... (existing routes)
+
+/**
+ * Get all interviews for a specific position
+ */
+interviews.get('/position/:id', async (c) => {
+	const user = c.get('user');
+	const positionId = c.req.param('id');
+	try {
+		const result = await getInterviewsByPosition(user.id, positionId);
+		return c.json(result);
+	} catch (err: any) {
+		console.error(`Error fetching interviews for position ${positionId}:`, err);
 		return c.json({ error: err.message }, 500);
 	}
 });
