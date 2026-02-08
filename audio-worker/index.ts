@@ -9,6 +9,8 @@ import path from 'path';
 import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
+import { processTranscript } from './transcript-processor';
+import type { TranscriptPart } from './transcript-processor';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -24,16 +26,6 @@ interface TranscriptSegment {
 	globalEndMs: number;
 	text: string;
 	chunkFile: string;
-}
-
-// Types for transcript segments matching user request
-interface TranscriptPart {
-	start_ts: number;
-	end_ts: number;
-	speaker_id: string;
-	role: string;
-	text: string;
-	asr_confidence: number;
 }
 
 interface TrackMetadata {
@@ -456,45 +448,41 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 
 		console.log(`[MERGE] Aggregated ${allParts.length} segments.`);
 
-		// Generate text transcript
-		let transcriptText = '';
-		let lastSpeaker = '';
+		// Use the new transcript processor to clean, merge and structure the data
+		console.log(`[MERGE] Processing ${allParts.length} segments with advanced logic...`);
+		const processedArtifact = processTranscript(allParts);
+		console.log(
+			`[MERGE] Processed: ${processedArtifact.raw_segment_count} raw -> ${processedArtifact.canonical_segment_count} canonical segments -> ${processedArtifact.turns.length} turns.`
+		);
 
-		for (const part of allParts) {
-			const timestamp = formatTimestamp(part.start_ts);
-			const speakerLabel =
-				part.role === 'candidate' ? `Candidate (${part.speaker_id})` : `Interviewer (${part.speaker_id})`;
+		// Generate human-readable text from merged turns
+		const transcriptText = processedArtifact.turns
+			.map((turn) => `[${formatTimestamp(turn.start_ts * 1000)} - ${turn.role}] ${turn.text}`)
+			.join('\n\n');
 
-			if (part.speaker_id !== lastSpeaker) {
-				transcriptText += `\n[${timestamp}] ${speakerLabel}:\n`;
-				lastSpeaker = part.speaker_id;
-			}
-			transcriptText += `${part.text} `;
-		}
-
-		// Write merged text transcript
+		// Save transcript.txt
 		await s3Client.send(
 			new PutObjectCommand({
 				Bucket: bucket,
 				Key: transcriptKey,
-				Body: transcriptText.trim(),
+				Body: transcriptText,
 				ContentType: 'text/plain',
 			})
 		);
+		console.log(`[MERGE] Saved polished transcript to ${transcriptKey}`);
 
-		// Write merged JSON transcript (requested format)
+		// Save detailed JSON artifact
 		await s3Client.send(
 			new PutObjectCommand({
 				Bucket: bucket,
 				Key: fullJsonParamsKey,
-				Body: JSON.stringify(allParts, null, 2),
+				Body: JSON.stringify(processedArtifact, null, 2),
 				ContentType: 'application/json',
 			})
 		);
-
-		console.log(`[TRANSCRIPT] Successfully updated merged transcripts at s3://${bucket}/${transcriptKey}`);
-	} catch (err) {
-		console.error(`Failed to generate merged transcript:`, err);
+		console.log(`[MERGE] Saved structured artifact to ${fullJsonParamsKey}`);
+	} catch (e) {
+		console.error(`[MERGE] Error merging transcripts for ${interviewFolder}:`, e);
 	}
 }
 
