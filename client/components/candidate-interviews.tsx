@@ -107,7 +107,12 @@ export default function CandidateInterviews({
 					time: formattedTime,
 					status: interview.status,
 					interviewer: interviewerName,
-					analysis: interview.report_s3_url ? 'Report Available' : 'No analysis yet.',
+					analysis:
+						interview.status === 'completed' && !interview.report_s3_url
+							? "We're evaluating the candidate performance, we'll get back to you shortly"
+							: interview.report_s3_url
+							? 'Report Available'
+							: 'No analysis yet.',
 					reportUrl: interview.report_s3_url,
 				});
 			});
@@ -238,7 +243,7 @@ export default function CandidateInterviews({
 														<p className='text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2'>
 															AI Analysis Report
 														</p>
-														<p className='text-sm text-slate-700 dark:text-slate-300 italic'>"{interview.analysis}"</p>
+														<p className='text-sm text-slate-700 dark:text-slate-300 italic'>{interview.analysis}</p>
 													</div>
 												</div>
 

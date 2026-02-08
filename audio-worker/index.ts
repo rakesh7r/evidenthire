@@ -13,6 +13,7 @@ import { processTranscript } from './transcript-processor';
 import type { TranscriptPart, TranscriptArtifact } from './types';
 import { extractEvidence, generateHireSignal } from './evidence-extractor';
 import { sql } from './db';
+import { sendReportReadyEmail } from './email-service';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -536,6 +537,47 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string,
                         WHERE id = ${interviewId}
                     `;
 					console.log(`[DB] Updated interview ${interviewId} with report URL: ${s3Url}`);
+
+					// Notify Users via Email (Recruiters/Interviewers only)
+					try {
+						// Fetch participants who are internal users
+						const participants = (await sql`
+                            SELECT
+                                c.name as candidate_name,
+                                p.title as position_title,
+                                u.email as user_email
+                            FROM interview i
+                            LEFT JOIN candidate c ON i.candidate_id = c.id
+                            LEFT JOIN position p ON i.position_id = p.id
+                            LEFT JOIN interview_participant ip ON i.id = ip.interview_id
+                            INNER JOIN user_account u ON ip.user_id = u.id
+                            WHERE i.id = ${interviewId}
+                            AND u.role IN ('recruiter', 'interviewer', 'admin')
+                        `) as any[];
+
+						if (participants && participants.length > 0) {
+							const { candidate_name, position_title } = participants[0];
+							// Ensure we only collect user_emails, filtering out any potential nulls
+							const uniqueEmails = [
+								...new Set(participants.map((p) => p.user_email).filter((e) => e && typeof e === 'string')),
+							];
+
+							console.log(
+								`[EMAIL] Sending report notification to ${uniqueEmails.length} recruiters/interviewers for ${candidate_name}`
+							);
+
+							for (const email of uniqueEmails) {
+								await sendReportReadyEmail(
+									email,
+									candidate_name || 'Candidate',
+									position_title || 'Position',
+									interviewId
+								);
+							}
+						}
+					} catch (notifyErr) {
+						console.error('[EMAIL] Failed to send report notification:', notifyErr);
+					}
 				}
 			} catch (err) {
 				console.error('[DB] Failed to update interview with report URL:', err);
