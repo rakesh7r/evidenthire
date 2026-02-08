@@ -12,6 +12,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { processTranscript } from './transcript-processor';
 import type { TranscriptPart, TranscriptArtifact } from './types';
 import { extractEvidence, generateHireSignal } from './evidence-extractor';
+import { sql } from './db';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -514,6 +515,29 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string,
 				})
 			);
 			console.log(`[MERGE] Saved analysis report to ${reportParamsKey}`);
+
+			// Update Database with Report URL
+			const region = process.env.AWS_REGION || 'ap-south-1';
+			const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${reportParamsKey}`;
+
+			// Extract interviewId from interviewFolder. interviewFolder is like <interview_id> or <interview_id> if it's top level.
+			// The generateMergedTranscript receives `interviewFolder` as argument.
+			// In processAudioChunk: `const interviewFolder = parts.slice(0, audioIndex).join('/');`
+			// If path is `<interview_id>/audio/...`, interviewFolder is `<interview_id>`.
+
+			try {
+				const interviewId = interviewFolder.split('/')[0]; // Assuming interviewFolder is "uuid" or "uuid/something" if nested
+				if (interviewId) {
+					await sql`
+                        UPDATE interview 
+                        SET report_s3_url = ${s3Url} 
+                        WHERE id = ${interviewId}
+                    `;
+					console.log(`[DB] Updated interview ${interviewId} with report URL: ${s3Url}`);
+				}
+			} catch (err) {
+				console.error('[DB] Failed to update interview with report URL:', err);
+			}
 		}
 
 		return processedArtifact;
