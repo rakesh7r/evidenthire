@@ -463,7 +463,7 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string,
 		if (interviewType && process.env.OPENAI_API_KEY) {
 			console.log(`[MERGE] Performing Evidence Extraction & Analysis for type: ${interviewType}...`);
 			const evidence = await extractEvidence(openai, processedArtifact.qa_spans, interviewType);
-			const report = generateHireSignal(evidence, interviewType);
+			const report = await generateHireSignal(openai, evidence, interviewType);
 
 			processedArtifact.report = {
 				evidence: evidence,

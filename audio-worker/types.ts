@@ -49,6 +49,7 @@ export interface HireSignal {
 	coverage: number;
 	notes: string;
 	competency_breakdown: CompetencySummary[];
+	summary?: string;
 }
 
 export interface ReportArtifact {

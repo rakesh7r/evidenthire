@@ -94,7 +94,11 @@ Output JSON only.
 	return allEvidence;
 }
 
-export function generateHireSignal(evidence: Evidence[], interviewType: string): HireSignal {
+export async function generateHireSignal(
+	openai: OpenAI,
+	evidence: Evidence[],
+	interviewType: string
+): Promise<HireSignal> {
 	const competencies = getCompetencies(interviewType);
 
 	// Aggregation
@@ -144,15 +148,15 @@ export function generateHireSignal(evidence: Evidence[], interviewType: string):
 	let hireSignal: HireSignal['hire_signal'] = 'inconclusive';
 	let notes = '';
 
+	const totalRisks = Array.from(competencyMap.values()).reduce((sum, d) => sum + d.risks.length, 0);
+	const totalEvidence = Array.from(competencyMap.values()).reduce((sum, d) => sum + d.evidence.length, 0);
+
 	if (coverage < 0.5) {
 		hireSignal = 'inconclusive';
 		notes = 'Insufficient signal coverage.';
 	} else {
 		// Simple logic for Demo:
 		// If risks are low and evidence is high -> Hire
-		const totalRisks = Array.from(competencyMap.values()).reduce((sum, d) => sum + d.risks.length, 0);
-		const totalEvidence = Array.from(competencyMap.values()).reduce((sum, d) => sum + d.evidence.length, 0);
-
 		if (totalRisks === 0 && totalEvidence > 5) {
 			hireSignal = 'strong_hire';
 		} else if (totalRisks < 2 && totalEvidence > 3) {
@@ -168,11 +172,45 @@ export function generateHireSignal(evidence: Evidence[], interviewType: string):
 	// Confidence of the report
 	const overallConfidence = breakdown.reduce((sum, b) => sum + b.confidence, 0) / (breakdown.length || 1);
 
+	// Generate Summary using LLM
+	let summary = '';
+	try {
+		const summaryPrompt = `
+You are an expert technical recruiter. Based on the following extracted evidence from a "${interviewType}" interview, evaluate the candidate.
+
+Competency Breakdown:
+${JSON.stringify(breakdown, null, 2)}
+
+Evidence & Risks:
+${JSON.stringify(Object.fromEntries(competencyMap), null, 2)}
+
+Overall Signal: ${hireSignal}
+
+Task: Write a concise, 2-3 sentence summary of the candidate's performance. Highlight key strengths and any major red flags. Be professional and objective.
+`;
+
+		const completion = await openai.chat.completions.create({
+			model: 'gpt-4o',
+			messages: [
+				{ role: 'system', content: 'You are a precise technical recruiter helper.' },
+				{ role: 'user', content: summaryPrompt },
+			],
+			temperature: 0.3,
+			max_tokens: 150,
+		});
+
+		summary = completion.choices[0]?.message?.content?.trim() || notes;
+	} catch (e) {
+		console.error('Failed to generate summary:', e);
+		summary = notes;
+	}
+
 	return {
 		hire_signal: hireSignal,
 		confidence: Number(overallConfidence.toFixed(2)),
 		coverage: Number(coverage.toFixed(2)),
 		notes: notes.trim(),
 		competency_breakdown: breakdown,
+		summary,
 	};
 }
