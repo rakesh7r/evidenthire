@@ -89,6 +89,7 @@ export const getInterviewById = async (userId: string, interviewId: string) => {
             c.name as candidate_name, 
             c.email as candidate_email,
             p.title as position_title,
+            p.organization_id,
             (
                 SELECT array_agg(user_id) 
                 FROM interview_participant 

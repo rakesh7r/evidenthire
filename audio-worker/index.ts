@@ -14,6 +14,7 @@ import type { TranscriptPart, TranscriptArtifact } from './types';
 import { extractEvidence, generateHireSignal } from './evidence-extractor';
 import { sql } from './db';
 import { sendReportReadyEmail } from './email-service';
+import { indexInterviewArtifact } from './rag-indexer';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -538,7 +539,42 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string,
                     `;
 					console.log(`[DB] Updated interview ${interviewId} with report URL: ${s3Url}`);
 
-					// Notify Users via Email (Recruiters/Interviewers only)
+					// 1. Index for RAG (Search & Chat)
+					try {
+						const metaRows = await sql`
+                            SELECT 
+                                i.candidate_id, 
+                                i.position_id, 
+                                p.organization_id, 
+                                i.round_type,
+                                i.round_title
+                            FROM interview i
+                            LEFT JOIN position p ON i.position_id = p.id
+                            WHERE i.id = ${interviewId}
+                        `;
+
+						if (metaRows && metaRows.length > 0) {
+							const m = metaRows[0];
+							if (m) {
+								console.log(`[RAG] Indexing artifact for ${interviewId} (Org: ${m.organization_id})`);
+
+								await indexInterviewArtifact(processedArtifact, {
+									organizationId: m.organization_id,
+									positionId: m.position_id,
+									candidateId: m.candidate_id,
+									interviewId: interviewId,
+									interviewType: m.round_type || m.round_title || 'general',
+								});
+								console.log(`[RAG] Indexing complete.`);
+							}
+						} else {
+							console.warn(`[RAG] Skipped indexing: Metadata not found for ${interviewId}`);
+						}
+					} catch (ragErr) {
+						console.error('[RAG] Indexing failed:', ragErr);
+					}
+
+					// 2. Notify Users via Email (Recruiters/Interviewers only)
 					try {
 						// Fetch participants who are internal users
 						const participants = (await sql`

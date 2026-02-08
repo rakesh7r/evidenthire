@@ -23,6 +23,7 @@ import {
 	getInterviewStatusSummary,
 	ACCESS_CONFIG,
 } from '../services/interview-access.service';
+import { retrieveContext, generateRAGResponse } from '../services/rag-retrieval.service';
 
 const interviews = new Hono<AuthEnv>();
 
@@ -336,6 +337,43 @@ interviews.post('/:id/end', async (c) => {
 		return c.json({ message: result.message, status: result.status });
 	} catch (err: any) {
 		console.error(`Error ending interview ${id}:`, err);
+		return c.json({ error: err.message }, 500);
+	}
+});
+
+/**
+ * RAG Chat
+ */
+interviews.post('/:id/chat', async (c) => {
+	const user = c.get('user');
+	const id = c.req.param('id');
+	const { message } = await c.req.json();
+
+	if (!message) {
+		return c.json({ error: 'Message is required' }, 400);
+	}
+
+	try {
+		// Fetch interview for metadata access control and filtering
+		const interview = await getInterviewById(user.id, id);
+		if (!interview) {
+			return c.json({ error: 'Interview not found' }, 404);
+		}
+
+		// Use new RAG implementation
+		const context = await retrieveContext(message, {
+			organizationId: (interview as any).organization_id, // Cast because type definition might be lagging
+			positionId: interview.position_id,
+			candidateId: interview.candidate_id,
+			interviewId: id,
+			// interview.round_type is present in Interview interface
+			interviewType: interview.round_type,
+		});
+
+		const response = await generateRAGResponse(message, context);
+		return c.json({ response });
+	} catch (err: any) {
+		console.error(`Error processing chat for interview ${id}:`, err);
 		return c.json({ error: err.message }, 500);
 	}
 });

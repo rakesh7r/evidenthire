@@ -16,7 +16,10 @@ import {
 	ExternalLink,
 	Search,
 	RefreshCw,
+	MessageSquareText,
+	X,
 } from 'lucide-react';
+import InterviewChatbot from './interview-chatbot';
 
 interface InterviewRound {
 	id: string;
@@ -68,6 +71,9 @@ export default function CandidateInterviews({
 	const [candidates, setCandidates] = useState<CandidateGroup[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
+
+	const [chatInterviewId, setChatInterviewId] = useState<string | null>(null);
+	const [chatCandidateName, setChatCandidateName] = useState<string>('');
 
 	const fetchInterviews = useCallback(async () => {
 		try {
@@ -257,17 +263,28 @@ export default function CandidateInterviews({
 														</button>
 													)}
 													{interview.status === 'completed' && (
-														<button
-															onClick={() => interview.reportUrl && window.open(interview.reportUrl, '_blank')}
-															disabled={!interview.reportUrl}
-															className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white transition-all shadow-lg ${
-																interview.reportUrl
-																	? 'bg-orange-600 hover:bg-orange-500 shadow-orange-600/10 cursor-pointer'
-																	: 'bg-slate-400 cursor-not-allowed opacity-70'
-															}`}>
-															<Eye className='h-3.5 w-3.5' />
-															VIEW REPORT
-														</button>
+														<>
+															<button
+																onClick={() => {
+																	setChatInterviewId(interview.id);
+																	setChatCandidateName(candidate.name);
+																}}
+																className='flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/10'>
+																<MessageSquareText className='h-3.5 w-3.5' />
+																CHAT
+															</button>
+															<button
+																onClick={() => interview.reportUrl && window.open(interview.reportUrl, '_blank')}
+																disabled={!interview.reportUrl}
+																className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white transition-all shadow-lg ${
+																	interview.reportUrl
+																		? 'bg-orange-600 hover:bg-orange-500 shadow-orange-600/10 cursor-pointer'
+																		: 'bg-slate-400 cursor-not-allowed opacity-70'
+																}`}>
+																<Eye className='h-3.5 w-3.5' />
+																VIEW REPORT
+															</button>
+														</>
 													)}
 													<button className='flex items-center justify-center gap-2 rounded-lg bg-slate-100 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 transition-all hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'>
 														<Download className='h-3.5 w-3.5' />
@@ -293,6 +310,34 @@ export default function CandidateInterviews({
 					<p className='text-sm text-slate-400 dark:text-slate-500'>
 						{searchTerm ? 'Try adjusting your search terms.' : 'Schedule an interview to see analysis reports.'}
 					</p>
+				</div>
+			)}
+
+			{/* Chat Drawer Overlay */}
+			{chatInterviewId && (
+				<div className='fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm transition-all animate-in fade-in'>
+					<div className='w-full max-w-md h-full bg-white dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300'>
+						<div className='flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50'>
+							<div>
+								<h3 className='font-bold text-lg text-slate-900 dark:text-white'>Interview Assistant</h3>
+								<p className='text-xs text-slate-500'>Chatting about {chatCandidateName}</p>
+							</div>
+							<button
+								onClick={() => setChatInterviewId(null)}
+								className='p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-500'>
+								<X className='h-5 w-5' />
+							</button>
+						</div>
+						<div className='flex-1 overflow-hidden p-4'>
+							<InterviewChatbot
+								interviewId={chatInterviewId}
+								candidateName={chatCandidateName}
+							/>
+						</div>
+						<div className='p-4 border-t border-slate-100 dark:border-slate-800 text-xs text-center text-slate-400 bg-slate-50 dark:bg-slate-900/30'>
+							Evident Hire RAG Intelligence
+						</div>
+					</div>
 				</div>
 			)}
 		</div>

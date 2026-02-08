@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles } from 'lucide-react';
 
+import api from '@/lib/api';
+
 interface Message {
 	id: string;
 	role: 'user' | 'assistant';
@@ -10,13 +12,23 @@ interface Message {
 	timestamp: Date;
 }
 
-export default function InterviewChatbot() {
+interface InterviewChatbotProps {
+	interviewId?: string;
+	candidateName?: string;
+}
+
+export default function InterviewChatbot({ interviewId, candidateName }: InterviewChatbotProps) {
+	const initialMessage = interviewId
+		? `Hello! I can answer questions about the interview with ${
+				candidateName || 'the candidate'
+		  }. Ask me anything about the transcript or evidence.`
+		: 'Hello! I can help you analyze interviews, compare candidates, or suggest questions. What would you like to know?';
+
 	const [messages, setMessages] = useState<Message[]>([
 		{
 			id: '1',
 			role: 'assistant',
-			content:
-				'Hello! I can help you analyze interviews, compare candidates, or suggest questions. What would you like to know?',
+			content: initialMessage,
 			timestamp: new Date(),
 		},
 	]);
@@ -30,7 +42,7 @@ export default function InterviewChatbot() {
 
 	useEffect(() => {
 		scrollToBottom();
-	}, [messages]);
+	}, [messages, isTyping]);
 
 	const handleSend = async (e?: React.FormEvent) => {
 		if (e) e.preventDefault();
@@ -47,25 +59,52 @@ export default function InterviewChatbot() {
 		setInput('');
 		setIsTyping(true);
 
-		// Mock AI response
-		setTimeout(() => {
-			const responses = [
-				'Based on the transcripts, Sarah showed excellent command of React hooks but struggled slightly with system design concepts.',
-				"I've analyzed the last 3 interviews. The strongest candidate for technical depth is Jessica, scoring 9/10 on the coding challenge.",
-				"Here's a suggested follow-up question: 'Can you describe a situation where you had to optimize a slow-performing API endpoint?'",
-				'The average sentiment across all interviews is positive. Candidate #2 had particularly high engagement metrics.',
-			];
-			const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+		if (interviewId) {
+			try {
+				const { data } = await api.post(`/interviews/${interviewId}/chat`, {
+					message: userMsg.content,
+				});
 
-			const aiMsg: Message = {
-				id: (Date.now() + 1).toString(),
-				role: 'assistant',
-				content: randomResponse,
-				timestamp: new Date(),
-			};
-			setMessages((prev) => [...prev, aiMsg]);
-			setIsTyping(false);
-		}, 1500);
+				const aiMsg: Message = {
+					id: (Date.now() + 1).toString(),
+					role: 'assistant',
+					content: data.response || "I couldn't generate a response.",
+					timestamp: new Date(),
+				};
+				setMessages((prev) => [...prev, aiMsg]);
+			} catch (err) {
+				console.error('Chat error:', err);
+				const errorMsg: Message = {
+					id: (Date.now() + 1).toString(),
+					role: 'assistant',
+					content: 'Sorry, I encountered an error connecting to the server.',
+					timestamp: new Date(),
+				};
+				setMessages((prev) => [...prev, errorMsg]);
+			} finally {
+				setIsTyping(false);
+			}
+		} else {
+			// Mock AI response for generic mode (if kept)
+			setTimeout(() => {
+				const responses = [
+					'Based on the transcripts, Sarah showed excellent command of React hooks but struggled slightly with system design concepts.',
+					"I've analyzed the last 3 interviews. The strongest candidate for technical depth is Jessica, scoring 9/10 on the coding challenge.",
+					"Here's a suggested follow-up question: 'Can you describe a situation where you had to optimize a slow-performing API endpoint?'",
+					'The average sentiment across all interviews is positive. Candidate #2 had particularly high engagement metrics.',
+				];
+				const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+
+				const aiMsg: Message = {
+					id: (Date.now() + 1).toString(),
+					role: 'assistant',
+					content: randomResponse,
+					timestamp: new Date(),
+				};
+				setMessages((prev) => [...prev, aiMsg]);
+				setIsTyping(false);
+			}, 1500);
+		}
 	};
 
 	return (
