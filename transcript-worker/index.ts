@@ -105,14 +105,18 @@ const startSQSConsumer = async () => {
 								interviewId: body.interviewId,
 							});
 
-							if (body.event === 'session_ended') {
-								log('INFO', `>>> Processing session_ended event <<<`);
+							if (body.event === 'transcript_ready') {
+								log('INFO', `>>> Processing transcript_ready event <<<`);
 								log('INFO', `Interview ID: ${body.interviewId}`);
 								log('INFO', `Timestamp: ${body.timestamp}`);
 
 								await processSessionEnd(body.interviewId);
 
-								log('INFO', `<<< Finished processing session_ended event >>>`);
+								log('INFO', `<<< Finished processing transcript_ready event >>>`);
+							} else if (body.event === 'session_ended') {
+								// Backward compatibility if needed, but we prefer transcript_ready
+								log('INFO', `Received session_ended, treating as transcript_ready`);
+								await processSessionEnd(body.interviewId);
 							} else {
 								log('WARN', `Unknown event type: ${body.event}`, body);
 							}
