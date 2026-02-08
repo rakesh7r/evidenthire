@@ -22,7 +22,7 @@ if (ffmpegPath) {
 	console.warn('ffmpeg-static path not found, audio conversion might fail.');
 }
 
-const WAIT_TIME_SECONDS = 120;
+const WAIT_TIME_SECONDS = 20;
 
 // Types for transcript segments (Legacy/Internal use)
 interface TranscriptSegment {
