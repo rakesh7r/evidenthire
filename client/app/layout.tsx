@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
 	title: 'EvidentHire',
 	description: 'Objective performance reports generated instantly from interview transcriptions',
+	robots: {
+		index: true,
+		follow: true,
+	},
 };
 
 import { Toaster } from 'sonner';
