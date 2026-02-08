@@ -1,12 +1,20 @@
 import 'dotenv/config';
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import type { ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
 import OpenAI from 'openai';
 import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from 'ffmpeg-static';
+
+if (ffmpegPath) {
+	ffmpeg.setFfmpegPath(ffmpegPath);
+} else {
+	console.warn('ffmpeg-static path not found, audio conversion might fail.');
+}
 
 // Types for transcript segments
 interface TranscriptSegment {
@@ -143,6 +151,7 @@ const startSQSConsumer = async () => {
 			if (response.Messages && response.Messages.length > 0) {
 				console.log(`Received ${response.Messages.length} messages from SQS.`);
 				for (const message of response.Messages) {
+					let processingSuccess = false;
 					if (message.Body) {
 						try {
 							const body = JSON.parse(message.Body);
@@ -151,10 +160,14 @@ const startSQSConsumer = async () => {
 								console.log(
 									`[SQS] Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`
 								);
+								processingSuccess = true;
 							} else if (body.event === 'session_ended') {
 								console.log(`[SQS] Received session_ended for interview ${body.interviewId}. Finalizing transcript...`);
 								await handleSessionEnd(body.interviewId);
+								processingSuccess = true;
 							} else if (body.Records) {
+								// Assume success unless an error is thrown in the loop
+								let allRecordsSuccess = true;
 								for (const record of body.Records) {
 									if (!record.s3 || !record.s3.bucket || !record.s3.object) continue;
 
@@ -166,27 +179,38 @@ const startSQSConsumer = async () => {
 									// We only care about audio chunks (e.g., .ts or .m4a)
 									if (key.endsWith('.ts') || key.endsWith('.m4a') || key.endsWith('.mp3')) {
 										console.log(`[AUDIO-WORKER] START processing chunk: ${key}`);
-										await processAudioChunk(bucket, key);
-										console.log(`[AUDIO-WORKER] FINISH processing chunk: ${key}`);
+										try {
+											await processAudioChunk(bucket, key);
+											console.log(`[AUDIO-WORKER] FINISH processing chunk: ${key}`);
+										} catch (chunkError) {
+											console.error(`[AUDIO-WORKER] Failed to process chunk ${key}:`, chunkError);
+											allRecordsSuccess = false;
+										}
 									} else {
 										console.log(`[AUDIO-WORKER] Ignoring non-audio file: ${key}`);
 									}
 								}
+								processingSuccess = allRecordsSuccess;
 							} else {
 								console.log(`[SQS] Received unknown message format:`, body);
+								processingSuccess = true; // Ack unknown messages to avoid loops
 							}
 						} catch (e) {
 							console.error('[SQS] Error parsing/processing message body:', e);
+							processingSuccess = false;
 						}
 					}
 
-					if (message.ReceiptHandle) {
+					if (message.ReceiptHandle && processingSuccess) {
 						await sqsClient.send(
 							new DeleteMessageCommand({
 								QueueUrl: QUEUE_URL,
 								ReceiptHandle: message.ReceiptHandle,
 							})
 						);
+						console.log(`[SQS] Message deleted/acked.`);
+					} else {
+						console.log(`[SQS] Message NOT deleted (processing failed or no body). Will be retried.`);
 					}
 				}
 			}
@@ -408,7 +432,7 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 				Prefix: partsPrefix,
 				ContinuationToken: continuationToken,
 			});
-			const listRes = await s3Client.send(listCmd);
+			const listRes = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput;
 
 			if (listRes.Contents) {
 				for (const obj of listRes.Contents) {
