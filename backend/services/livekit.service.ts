@@ -9,7 +9,7 @@ import {
 } from 'livekit-server-sdk';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
-import { getOrCreateAudioFolder, persistChunkIndex } from './interview-audio.service';
+import { getOrCreateAudioFolder, persistChunkIndex, getNextAudioChunkIndex } from './interview-audio.service';
 import { sql } from '../db';
 import { redis } from '../redis';
 import logger from '../lib/logger';
@@ -222,13 +222,17 @@ export const startTrackAudioRecording = async (
 		logger.error({ error: String(err), trackMetadataKey }, 'Failed to write track metadata to S3');
 	}
 
-	// Filename prefix: <interview_id>/audio/<email>
-	// LiveKit will append _0000.ts, _0001.ts, etc.
-	// Chunk indices continue across sessions
-	const filenamePrefix = `${audioFolderPath}/${email}`;
-	const playlistName = `playlist_${email}.m3u8`;
+	// Get the next incremental index for this egress session to prevent overwrites
+	// and maintain an order.
+	const egressId = await getNextAudioChunkIndex(interviewId);
 
-	logger.info({ s3Bucket, filenamePrefix, playlistName }, '[LIVEKIT] Starting track egress');
+	// Filename prefix: <interview_id>/audio/<email>_<egress_id>
+	// LiveKit will append _0000.ts, _0001.ts, etc.
+	// resulting in: <email>_<egress_id>_00000.ts
+	const filenamePrefix = `${audioFolderPath}/${email}_${egressId}`;
+	const playlistName = `playlist_${email}_${egressId}.m3u8`;
+
+	logger.info({ s3Bucket, filenamePrefix, playlistName, egressId }, '[LIVEKIT] Starting track egress');
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 

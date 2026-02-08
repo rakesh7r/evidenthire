@@ -218,19 +218,22 @@ async function processAudioChunk(bucket: string, key: string) {
 	try {
 		if (!filename) return;
 
-		// Extract email from filename (format: email_00001.ts)
-		const emailMatch = filename.match(/^(.+)_(\d+)\.(ts|m4a|mp3)$/);
+		// Extract email and egressId from filename (format: email_egressId_chunkId.ts)
+		// Example: rakesh@gmail.com_1_00000.ts
+		const emailMatch = filename.match(/^(.+)_(\d+)_(\d+)\.(ts|m4a|mp3)$/);
 		if (!emailMatch) {
-			console.log(`[${key}] Invalid filename format or could not extract email. Skipping.`);
+			console.log(`[${key}] Invalid filename format: ${filename}. Skipping.`);
 			return;
 		}
 
 		const email = emailMatch[1];
-		if (!email) {
-			console.log(`[${key}] Could not extract email from filename. Skipping.`);
+		const egressId = emailMatch[2];
+		if (!email || !egressId) {
+			console.log(`[${key}] Could not extract metadata from filename. Skipping.`);
 			return;
 		}
-		const playlistKey = `${audioFolderPath}/playlist_${email}.m3u8`;
+
+		const playlistKey = `${audioFolderPath}/playlist_${email}_${egressId}.m3u8`;
 
 		// 1. Get track metadata for timeline anchoring
 		const trackMetadata = await getTrackMetadata(bucket, audioFolderPath, email);
