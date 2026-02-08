@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import OpenAI from 'openai';
 import { Readable } from 'stream';
@@ -141,10 +141,6 @@ const startSQSConsumer = async () => {
 								console.log(
 									`[SQS] Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`
 								);
-							} else if (body.event === 'session_ended') {
-								console.log(`[SQS] Received session_ended for interview ${body.interviewId}. Finalizing transcript...`);
-								// Trigger final merge and notify transcript worker
-								await handleSessionEnd(body.interviewId);
 							} else if (body.Records) {
 								for (const record of body.Records) {
 									if (!record.s3 || !record.s3.bucket || !record.s3.object) continue;
@@ -440,44 +436,6 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 		);
 	} catch (err) {
 		console.error(`Failed to generate merged transcript:`, err);
-	}
-}
-
-async function handleSessionEnd(interviewId: string) {
-	const S3_BUCKET = process.env.AWS_S3_BUCKET;
-	if (!S3_BUCKET) {
-		console.error('[SessionEnd] AWS_S3_BUCKET not set');
-		return;
-	}
-
-	// 1. Force a final merge of the transcript to ensure consistency
-	// (Though per-chunk processing also does this, this accounts for any race conditions)
-	console.log(`[SessionEnd] Performing final transcript merge for ${interviewId}`);
-	await generateMergedTranscript(S3_BUCKET, interviewId);
-
-	const transcriptQueueUrl = process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL;
-	if (!transcriptQueueUrl) {
-		console.error('[SessionEnd] AWS_SQS_TRANSCRIPT_QUEUE_URL not set. Cannot notify transcript worker.');
-		return;
-	}
-
-	// 2. Notify transcript worker
-	const payload = {
-		event: 'transcript_ready',
-		interviewId,
-		timestamp: new Date().toISOString(),
-	};
-
-	try {
-		await sqsClient.send(
-			new SendMessageCommand({
-				QueueUrl: transcriptQueueUrl,
-				MessageBody: JSON.stringify(payload),
-			})
-		);
-		console.log(`[SessionEnd] Sent transcript_ready event to ${transcriptQueueUrl}`);
-	} catch (err) {
-		console.error(`[SessionEnd] Failed to send transcript_ready event:`, err);
 	}
 }
 
