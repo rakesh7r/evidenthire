@@ -20,6 +20,8 @@ if (ffmpegPath) {
 	console.warn('ffmpeg-static path not found, audio conversion might fail.');
 }
 
+const WAIT_TIME_SECONDS = 120;
+
 // Types for transcript segments (Legacy/Internal use)
 interface TranscriptSegment {
 	speaker: string;
@@ -137,7 +139,7 @@ const startSQSConsumer = async () => {
 			const command = new ReceiveMessageCommand({
 				QueueUrl: QUEUE_URL,
 				MaxNumberOfMessages: 5,
-				WaitTimeSeconds: 20,
+				WaitTimeSeconds: WAIT_TIME_SECONDS,
 			});
 
 			const response = await sqsClient.send(command);

@@ -18,15 +18,15 @@ module.exports = {
                 NODE_ENV: 'preview',
             },
         },
-        {
-            name: 'evident-transcript-worker',
-            cwd: './transcript-worker',
-            script: 'bun',
-            args: 'start',
-            env: {
-                NODE_ENV: 'preview',
-            },
-        },
+        // {
+        //     name: 'evident-transcript-worker',
+        //     cwd: './transcript-worker',
+        //     script: 'bun',
+        //     args: 'start',
+        //     env: {
+        //         NODE_ENV: 'preview',
+        //     },
+        // },
         {
             name: 'evident-client',
             cwd: './client',

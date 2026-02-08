@@ -2,6 +2,8 @@ import { processTranscript } from '../transcript-processor';
 import type { TranscriptPart, TranscriptArtifact } from '../types';
 import { extractEvidence, generateHireSignal } from '../evidence-extractor';
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
 import 'dotenv/config';
 
 const rawTranscriptText = `
@@ -178,6 +180,12 @@ async function runTest() {
 			console.log(`\nHire Signal: ${report.hire_signal.toUpperCase()} (Confidence: ${report.confidence})`);
 			console.log('Summary:', report.summary || report.notes);
 
+			// Attach report to the artifact
+			processed.report = {
+				evidence: evidence,
+				hire_signal: report,
+			};
+
 			if (report.hire_signal === 'hire' || report.hire_signal === 'strong_hire') {
 				console.log('PASS: Positive hire signal generated as expected for a strong candidate.');
 			} else {
@@ -189,6 +197,18 @@ async function runTest() {
 		}
 	} else {
 		console.log('\n⚠️  Skipping AI Analysis: OPENAI_API_KEY not found in environment.');
+	}
+
+	// Save Results to File
+	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+	const filename = `test_results_${timestamp}.json`;
+	const outputPath = path.join(__dirname, filename);
+
+	try {
+		fs.writeFileSync(outputPath, JSON.stringify(processed, null, 2));
+		console.log(`\n📄 Saved detailed test results to: ${outputPath}`);
+	} catch (err) {
+		console.error('\n❌ Failed to save test results file:', err);
 	}
 
 	if (passed) {
