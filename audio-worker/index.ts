@@ -1,12 +1,22 @@
 import 'dotenv/config';
-import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import type { ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
 import OpenAI from 'openai';
 import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from 'ffmpeg-static';
+import { processTranscript } from './transcript-processor';
+import type { TranscriptPart } from './transcript-processor';
+
+if (ffmpegPath) {
+	ffmpeg.setFfmpegPath(ffmpegPath);
+} else {
+	console.warn('ffmpeg-static path not found, audio conversion might fail.');
+}
 
 // Types for transcript segments
 interface TranscriptSegment {
@@ -24,9 +34,8 @@ interface TrackMetadata {
 	email: string;
 	role: string;
 	interviewId: string;
-	sessionId?: string;
-	sessionNumber?: number;
-	sessionStartTime: number;
+	// Session fields removed
+	interviewStartTime: number;
 	trackStartTime: number;
 	trackStartOffsetMs: number;
 	createdAt: string;
@@ -98,15 +107,15 @@ function parseM3u8(content: string) {
 	return segments;
 }
 
-function formatTimestamp(ms: number): string {
-	const totalSeconds = Math.floor(ms / 1000);
+function formatTimestamp(seconds: number): string {
+	const totalSeconds = Math.floor(seconds);
 	const hours = Math.floor(totalSeconds / 3600);
 	const minutes = Math.floor((totalSeconds % 3600) / 60);
-	const seconds = totalSeconds % 60;
-	const millis = ms % 1000;
-	return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds
+	const secs = totalSeconds % 60;
+	const ms = Math.round((seconds - totalSeconds) * 1000);
+	return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs
 		.toString()
-		.padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+		.padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 }
 
 const startSQSConsumer = async () => {
@@ -134,6 +143,7 @@ const startSQSConsumer = async () => {
 			if (response.Messages && response.Messages.length > 0) {
 				console.log(`Received ${response.Messages.length} messages from SQS.`);
 				for (const message of response.Messages) {
+					let processingSuccess = false;
 					if (message.Body) {
 						try {
 							const body = JSON.parse(message.Body);
@@ -142,7 +152,14 @@ const startSQSConsumer = async () => {
 								console.log(
 									`[SQS] Received track_published event for room: ${body.roomName} (Track: ${body.trackSid})`
 								);
+								processingSuccess = true;
+							} else if (body.event === 'session_ended') {
+								console.log(`[SQS] Received session_ended for interview ${body.interviewId}. Finalizing transcript...`);
+								await handleSessionEnd(body.interviewId);
+								processingSuccess = true;
 							} else if (body.Records) {
+								// Assume success unless an error is thrown in the loop
+								let allRecordsSuccess = true;
 								for (const record of body.Records) {
 									if (!record.s3 || !record.s3.bucket || !record.s3.object) continue;
 
@@ -154,27 +171,38 @@ const startSQSConsumer = async () => {
 									// We only care about audio chunks (e.g., .ts or .m4a)
 									if (key.endsWith('.ts') || key.endsWith('.m4a') || key.endsWith('.mp3')) {
 										console.log(`[AUDIO-WORKER] START processing chunk: ${key}`);
-										await processAudioChunk(bucket, key);
-										console.log(`[AUDIO-WORKER] FINISH processing chunk: ${key}`);
+										try {
+											await processAudioChunk(bucket, key);
+											console.log(`[AUDIO-WORKER] FINISH processing chunk: ${key}`);
+										} catch (chunkError) {
+											console.error(`[AUDIO-WORKER] Failed to process chunk ${key}:`, chunkError);
+											allRecordsSuccess = false;
+										}
 									} else {
 										console.log(`[AUDIO-WORKER] Ignoring non-audio file: ${key}`);
 									}
 								}
+								processingSuccess = allRecordsSuccess;
 							} else {
 								console.log(`[SQS] Received unknown message format:`, body);
+								processingSuccess = true; // Ack unknown messages to avoid loops
 							}
 						} catch (e) {
 							console.error('[SQS] Error parsing/processing message body:', e);
+							processingSuccess = false;
 						}
 					}
 
-					if (message.ReceiptHandle) {
+					if (message.ReceiptHandle && processingSuccess) {
 						await sqsClient.send(
 							new DeleteMessageCommand({
 								QueueUrl: QUEUE_URL,
 								ReceiptHandle: message.ReceiptHandle,
 							})
 						);
+						console.log(`[SQS] Message deleted/acked.`);
+					} else {
+						console.log(`[SQS] Message NOT deleted (processing failed or no body). Will be retried.`);
 					}
 				}
 			}
@@ -188,6 +216,7 @@ const startSQSConsumer = async () => {
 async function getTrackMetadata(bucket: string, audioFolderPath: string, email: string): Promise<TrackMetadata | null> {
 	const metadataKey = `${audioFolderPath}/track_${email}.json`;
 	try {
+		console.log(`[METADATA] Fetching ${metadataKey} from bucket ${bucket}`);
 		const res = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: metadataKey }));
 		const content = await streamToString(res.Body as Readable);
 		return JSON.parse(content) as TrackMetadata;
@@ -201,25 +230,39 @@ async function processAudioChunk(bucket: string, key: string) {
 	// New path structure: <interview_id>/audio/<email>_00001.ts
 	const parts = key.split('/');
 	const filename = parts.pop();
-	const audioFolderPath = parts.join('/'); // <interview_id>/audio
-	console.log(`[${key}] Starting processing...`);
+	// Construct audio folder path correctly
+	const audioIndex = parts.indexOf('audio');
+	if (audioIndex === -1) {
+		console.log(`[${key}] Skipping: 'audio' folder not found in path.`);
+		return;
+	}
+
+	// <interview_id>/audio
+	const audioFolderPath = parts.slice(0, audioIndex + 1).join('/');
+	// <interview_id>
+	const interviewFolder = parts.slice(0, audioIndex).join('/');
+
+	console.log(`[${key}] Starting processing... Folder: ${audioFolderPath}, Interview: ${interviewFolder}`);
 
 	try {
 		if (!filename) return;
 
-		// Extract email from filename (format: email_00001.ts)
-		const emailMatch = filename.match(/^(.+)_(\d+)\.(ts|m4a|mp3)$/);
+		// Extract email and egressId from filename (format: email_egressId_chunkId.ts)
+		// Example: rakesh@gmail.com_1_00000.ts
+		const emailMatch = filename.match(/^(.+)_(\d+)_(\d+)\.(ts|m4a|mp3)$/);
 		if (!emailMatch) {
-			console.log(`[${key}] Invalid filename format or could not extract email. Skipping.`);
+			console.log(`[${key}] Invalid filename format: ${filename}. Skipping.`);
 			return;
 		}
 
 		const email = emailMatch[1];
-		if (!email) {
-			console.log(`[${key}] Could not extract email from filename. Skipping.`);
+		const egressId = emailMatch[2];
+		if (!email || !egressId) {
+			console.log(`[${key}] Could not extract metadata from filename. Skipping.`);
 			return;
 		}
-		const playlistKey = `${audioFolderPath}/playlist_${email}.m3u8`;
+
+		const playlistKey = `${audioFolderPath}/playlist_${email}_${egressId}.m3u8`;
 
 		// 1. Get track metadata for timeline anchoring
 		const trackMetadata = await getTrackMetadata(bucket, audioFolderPath, email);
@@ -247,7 +290,7 @@ async function processAudioChunk(bucket: string, key: string) {
 		const audioBuffer = await streamToBuffer(audioRes.Body as Readable);
 
 		// 4. Transcribe with timestamps
-		const transcriptSegments: TranscriptSegment[] = [];
+		const transcriptParts: TranscriptPart[] = [];
 
 		if (process.env.OPENAI_API_KEY) {
 			// Convert TS to MP3 using ffmpeg
@@ -260,7 +303,10 @@ async function processAudioChunk(bucket: string, key: string) {
 			await new Promise<void>((resolve, reject) => {
 				ffmpeg(tempTsFile)
 					.toFormat('mp3')
-					.on('error', (err) => reject(err))
+					.on('error', (err) => {
+						console.error('ffmpeg conversion error:', err);
+						reject(err);
+					})
 					.on('end', () => resolve())
 					.save(tempMp3File);
 			});
@@ -281,32 +327,33 @@ async function processAudioChunk(bucket: string, key: string) {
 			// Process segments from Whisper
 			if (transcription.segments && Array.isArray(transcription.segments)) {
 				for (const seg of transcription.segments) {
-					// Whisper segment times are relative to the audio file
-					// Global time = track offset + playlist segment start + whisper segment start
-					const whisperStartMs = (seg.start || 0) * 1000;
-					const whisperEndMs = (seg.end || 0) * 1000;
+					// Whisper times are relative to this chunk (in seconds)
+					// Global time = (track_offset_ms / 1000) + playlist_segment_start_s + whisper_start_s
+					const chunkGlobalStartSeconds = globalSegmentStartMs / 1000;
 
-					const globalStartMs = globalSegmentStartMs + whisperStartMs;
-					const globalEndMs = globalSegmentStartMs + whisperEndMs;
+					const startTs = chunkGlobalStartSeconds + (seg.start || 0);
+					const endTs = chunkGlobalStartSeconds + (seg.end || 0);
 
-					transcriptSegments.push({
-						speaker: email,
+					transcriptParts.push({
+						start_ts: Number(startTs.toFixed(2)),
+						end_ts: Number(endTs.toFixed(2)),
+						speaker_id: email,
 						role: role,
-						globalStartMs,
-						globalEndMs,
 						text: seg.text?.trim() || '',
-						chunkFile: filename as string,
+						asr_confidence: 0.95, // Whisper doesn't always give confidence per segment in simple mode, defaulting
 					});
 				}
 			} else if (transcription.text) {
-				// Fallback if no segments available
-				transcriptSegments.push({
-					speaker: email,
+				// Fallback entire chunk
+				const startTs = globalSegmentStartMs / 1000;
+				const endTs = startTs + segmentDurationSeconds;
+				transcriptParts.push({
+					start_ts: Number(startTs.toFixed(2)),
+					end_ts: Number(endTs.toFixed(2)),
+					speaker_id: email,
 					role: role,
-					globalStartMs: globalSegmentStartMs,
-					globalEndMs: globalSegmentStartMs + segmentDurationSeconds * 1000,
 					text: transcription.text,
-					chunkFile: filename as string,
+					asr_confidence: 0.9,
 				});
 			}
 
@@ -315,54 +362,42 @@ async function processAudioChunk(bucket: string, key: string) {
 			await fs.promises.unlink(tempMp3File).catch(() => {});
 		} else {
 			// Mock transcription
-			transcriptSegments.push({
-				speaker: email,
+			const startTs = globalSegmentStartMs / 1000;
+			const endTs = startTs + segmentDurationSeconds;
+			transcriptParts.push({
+				start_ts: Number(startTs.toFixed(2)),
+				end_ts: Number(endTs.toFixed(2)),
+				speaker_id: email,
 				role: role,
-				globalStartMs: globalSegmentStartMs,
-				globalEndMs: globalSegmentStartMs + segmentDurationSeconds * 1000,
 				text: `[Mock Transcription for ${filename}]`,
-				chunkFile: filename as string,
+				asr_confidence: 1.0,
 			});
 		}
 
-		console.log(`[${key}] Transcribed ${transcriptSegments.length} segments. Saving to segments.jsonl...`);
+		console.log(`[${key}] Transcribed ${transcriptParts.length} segments.`);
 
-		// 5. Extract interview ID from path (first part before /audio)
-		const audioIndex = parts.indexOf('audio');
-		if (audioIndex === -1 || audioIndex === 0) {
-			console.log(`[${key}] [ERROR] 'audio' folder not found in expected position in path ${key}. Skipping.`);
-			return;
+		// 6. Write to individual Part file
+		if (transcriptParts.length > 0) {
+			// Using filename as unique ID for the part.
+			// filename example: rakesh@gmail.com_1_00000.ts -> rakesh@gmail.com_1_00000.json
+			const partFilename = filename.replace(/\.(ts|m4a|mp3)$/, '.json');
+			const partKey = `${interviewFolder}/transcripts/parts/${partFilename}`;
+
+			await s3Client.send(
+				new PutObjectCommand({
+					Bucket: bucket,
+					Key: partKey,
+					Body: JSON.stringify(transcriptParts, null, 2),
+					ContentType: 'application/json',
+				})
+			);
+			console.log(`[${key}] Saved part file to s3://${bucket}/${partKey}`);
+
+			// 7. Regenerate merged transcript
+			await generateMergedTranscript(bucket, interviewFolder);
+		} else {
+			console.log(`[${key}] No transcript content generated.`);
 		}
-
-		const interviewFolder = parts.slice(0, audioIndex).join('/');
-
-		// 6. Append segments to JSON Lines file (single file per interview, not per session)
-		const segmentsKey = `${interviewFolder}/transcripts/segments.jsonl`;
-
-		let existingSegments = '';
-		try {
-			const existing = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: segmentsKey }));
-			existingSegments = await streamToString(existing.Body as Readable);
-			console.log(`[${key}] Found existing segments file at ${segmentsKey}`);
-		} catch (e) {
-			console.log(`[${key}] No existing segments file found at ${segmentsKey}. Creating new.`);
-		}
-
-		const newLines = transcriptSegments.map((s) => JSON.stringify(s)).join('\n');
-		const updatedSegments = existingSegments ? existingSegments + '\n' + newLines : newLines;
-
-		await s3Client.send(
-			new PutObjectCommand({
-				Bucket: bucket,
-				Key: segmentsKey,
-				Body: updatedSegments,
-				ContentType: 'application/x-ndjson',
-			})
-		);
-		console.log(`[${key}] Successfully uploaded updated segments to s3://${bucket}/${segmentsKey}`);
-
-		// 7. Also generate human-readable transcript (merged and sorted)
-		await generateMergedTranscript(bucket, interviewFolder);
 
 		console.log(`[${key}] Processing of chunk complete.`);
 	} catch (err) {
@@ -370,63 +405,121 @@ async function processAudioChunk(bucket: string, key: string) {
 	}
 }
 
+// Updated merge function to read individual part files
 async function generateMergedTranscript(bucket: string, interviewFolder: string) {
-	const segmentsKey = `${interviewFolder}/transcripts/segments.jsonl`;
+	const partsPrefix = `${interviewFolder}/transcripts/parts/`;
 	const transcriptKey = `${interviewFolder}/transcripts/transcript.txt`;
+	const fullJsonParamsKey = `${interviewFolder}/transcripts/transcript.json`; // Requested JSON format
 
 	try {
-		// Read all segments
-		const segmentsRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: segmentsKey }));
-		const segmentsStr = await streamToString(segmentsRes.Body as Readable);
+		console.log(`[MERGE] Scanning for transcript parts in ${partsPrefix}`);
 
-		// Parse JSONL
-		const segments: TranscriptSegment[] = segmentsStr
-			.split('\n')
-			.filter((line) => line.trim())
-			.map((line) => {
-				try {
-					return JSON.parse(line) as TranscriptSegment;
-				} catch {
-					return null;
+		// List all part files
+		let allParts: TranscriptPart[] = [];
+		let continuationToken: string | undefined = undefined;
+
+		do {
+			const listCmd = new ListObjectsV2Command({
+				Bucket: bucket,
+				Prefix: partsPrefix,
+				ContinuationToken: continuationToken,
+			});
+			const listRes = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput;
+
+			if (listRes.Contents) {
+				for (const obj of listRes.Contents) {
+					if (obj.Key?.endsWith('.json')) {
+						try {
+							const partRes = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }));
+							const partStr = await streamToString(partRes.Body as Readable);
+							const parts = JSON.parse(partStr) as TranscriptPart[];
+							allParts = allParts.concat(parts);
+						} catch (e) {
+							console.warn(`Failed to read part file ${obj.Key}`, e);
+						}
+					}
 				}
-			})
-			.filter((s): s is TranscriptSegment => s !== null);
-
-		// Sort by global start time
-		segments.sort((a, b) => a.globalStartMs - b.globalStartMs);
-
-		// Detect speaker switches and generate transcript
-		let transcript = '';
-		let lastSpeaker = '';
-
-		for (const seg of segments) {
-			const timestamp = formatTimestamp(seg.globalStartMs);
-			const speakerLabel = seg.role === 'candidate' ? `Candidate (${seg.speaker})` : `Interviewer (${seg.speaker})`;
-
-			// Add speaker header on speaker switch
-			if (seg.speaker !== lastSpeaker) {
-				transcript += `\n[${timestamp}] ${speakerLabel}:\n`;
-				lastSpeaker = seg.speaker;
 			}
+			continuationToken = listRes.NextContinuationToken;
+		} while (continuationToken);
 
-			transcript += `${seg.text} `;
-		}
+		// Sort by start_ts
+		allParts.sort((a, b) => a.start_ts - b.start_ts);
 
-		// Write merged transcript
+		console.log(`[MERGE] Aggregated ${allParts.length} segments.`);
+
+		// Use the new transcript processor to clean, merge and structure the data
+		console.log(`[MERGE] Processing ${allParts.length} segments with advanced logic...`);
+		const processedArtifact = processTranscript(allParts);
+		console.log(
+			`[MERGE] Processed: ${processedArtifact.raw_segment_count} raw -> ${processedArtifact.canonical_segment_count} canonical segments -> ${processedArtifact.turns.length} turns.`
+		);
+
+		// Generate human-readable text from merged turns
+		const transcriptText = processedArtifact.turns
+			.map((turn) => `[${formatTimestamp(turn.start_ts * 1000)} - ${turn.role}] ${turn.text}`)
+			.join('\n\n');
+
+		// Save transcript.txt
 		await s3Client.send(
 			new PutObjectCommand({
 				Bucket: bucket,
 				Key: transcriptKey,
-				Body: transcript.trim(),
+				Body: transcriptText,
 				ContentType: 'text/plain',
 			})
 		);
+		console.log(`[MERGE] Saved polished transcript to ${transcriptKey}`);
 
-		console.log(
-			`[TRANSCRIPT] Successfully updated merged human-readable transcript at s3://${bucket}/${transcriptKey}`
+		// Save detailed JSON artifact
+		await s3Client.send(
+			new PutObjectCommand({
+				Bucket: bucket,
+				Key: fullJsonParamsKey,
+				Body: JSON.stringify(processedArtifact, null, 2),
+				ContentType: 'application/json',
+			})
 		);
+		console.log(`[MERGE] Saved structured artifact to ${fullJsonParamsKey}`);
+	} catch (e) {
+		console.error(`[MERGE] Error merging transcripts for ${interviewFolder}:`, e);
+	}
+}
+
+async function handleSessionEnd(interviewId: string) {
+	const S3_BUCKET = process.env.AWS_S3_BUCKET;
+	if (!S3_BUCKET) {
+		console.error('[SessionEnd] AWS_S3_BUCKET not set');
+		return;
+	}
+
+	// 1. Force a final merge of the transcript to ensure consistency
+	console.log(`[SessionEnd] Performing final transcript merge for ${interviewId}`);
+	await generateMergedTranscript(S3_BUCKET, interviewId);
+
+	const transcriptQueueUrl = process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL;
+	if (!transcriptQueueUrl) {
+		console.error('[SessionEnd] AWS_SQS_TRANSCRIPT_QUEUE_URL not set. Cannot notify transcript worker.');
+		return;
+	}
+
+	// 2. Notify transcript worker
+	const payload = {
+		event: 'transcript_ready',
+		interviewId,
+		timestamp: new Date().toISOString(),
+	};
+
+	try {
+		await sqsClient.send(
+			new SendMessageCommand({
+				QueueUrl: transcriptQueueUrl,
+				MessageBody: JSON.stringify(payload),
+			})
+		);
+		console.log(`[SessionEnd] Sent transcript_ready event to ${transcriptQueueUrl}`);
 	} catch (err) {
-		console.error(`Failed to generate merged transcript:`, err);
+		console.error(`[SessionEnd] Failed to send transcript_ready event:`, err);
 	}
 }
 

@@ -145,13 +145,17 @@ export default function SchedulerModal({
 		const roundTitle = typeof roundObj === 'string' ? roundObj : roundObj?.title;
 		const roundType = typeof roundObj === 'string' ? roundObj : roundObj?.type;
 
+		const [year, month, day] = selectedDate.split('-').map(Number);
+		const [hour, minute] = selectedTime.split(':').map(Number);
+		const scheduledDate = new Date(year, month - 1, day, hour, minute);
+		const scheduledStart = scheduledDate.toISOString();
+
 		try {
 			await api.post('/interviews', {
 				candidateName,
 				candidateEmail,
 				positionId,
-				date: selectedDate,
-				time: selectedTime,
+				scheduledStart,
 				roundTitle,
 				roundType,
 				interviewerIds: selectedInterviewers.map((m) => m.id),
