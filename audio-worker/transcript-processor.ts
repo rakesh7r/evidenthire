@@ -1,44 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-
-export interface TranscriptPart {
-	start_ts: number;
-	end_ts: number;
-	speaker_id: string;
-	role: string;
-	text: string;
-	asr_confidence: number;
-}
-
-export interface Turn {
-	turn_id: string;
-	speaker_id: string;
-	role: string;
-	text: string;
-	start_ts: number;
-	end_ts: number;
-	avg_confidence: number;
-}
-
-export interface QASpan {
-	span_id: string;
-	question_turn_id: string;
-	answer_turn_ids: string[];
-	question: string;
-	answer: string;
-	start_ts: number;
-	end_ts: number;
-}
-
-export interface TranscriptArtifact {
-	raw_segment_count: number;
-	canonical_segment_count: number;
-	turns: Turn[];
-	qa_spans: QASpan[];
-	metadata: {
-		processed_at: string;
-		total_duration: number;
-	};
-}
+import type { TranscriptPart, Turn, QASpan, TranscriptArtifact } from './types';
 
 // Helper: Simple Jaccard Similarity for text
 function getJaccardSimilarity(str1: string, str2: string): number {
@@ -101,7 +62,7 @@ function deduplicateSegments(segments: TranscriptPart[]): TranscriptPart[] {
 }
 
 // Step 2: Merge adjacent segments into speaker turns
-function mergeTurns(segments: TranscriptPart[]): Turn[] {
+function mergeSegmentsToTurns(segments: TranscriptPart[]): Turn[] {
 	if (segments.length === 0) return [];
 
 	const turns: Turn[] = [];
@@ -155,104 +116,156 @@ function createTurnFromBuffer(parts: TranscriptPart[]): Turn | null {
 		start_ts: first.start_ts,
 		end_ts: last.end_ts,
 		avg_confidence: avgConf,
+		intent: 'other', // Default, will be updated later
 	};
 }
 
-// Step 4 & 5: Detect Questions and Construct Q -> A Spans
-function constructQASpans(turns: Turn[]): QASpan[] {
-	const spans: QASpan[] = [];
+// Phase 1 Task 1.1: Filter junk turns
+function isMeaningfulTurn(turn: Turn): boolean {
+	const text = turn.text.trim();
+	if (text.length < 5) return false; // Too short
 
-	// Heuristics for questions
-	const questionWords = new Set([
-		'how',
-		'what',
-		'why',
-		'when',
-		'where',
-		'who',
-		'which',
-		'can',
-		'could',
-		'would',
-		'do',
-		'does',
-		'is',
-		'are',
-		'tell',
-	]);
+	// Filler List
+	const fillers = new Set(['you', 'hello', 'uh', 'ok', 'okay', 'right', 'yeah', 'yep', 'hmm', 'ah']);
+	const cleanText = text.toLowerCase().replace(/[^a-z\s]/g, '');
+
+	// Check if text is just filler words (repeated or single)
+	const words = cleanText.split(/\s+/).filter((w) => w.length > 0);
+	if (words.length === 0) return false;
+
+	const allFillers = words.every((w) => fillers.has(w));
+	if (allFillers) return false;
+
+	// Check for "hello hello" repetition if strictly just fillers
+	// The strict check 'allFillers' covers 'hello hello'
+
+	return true;
+}
+
+// Phase 1 Task 1.2: Merge micro-turns
+function mergeMicroTurns(turns: Turn[]): Turn[] {
+	if (turns.length === 0) return [];
+
+	const merged: Turn[] = [];
+	let current = turns[0];
+	if (!current) return []; // Check for undefined
+
+	for (let i = 1; i < turns.length; i++) {
+		const next = turns[i];
+		if (!next) continue; // Safety check
+
+		const gap = next.start_ts - current.end_ts;
+
+		// Merge if same speaker, small gap, and we already know they are meaningful
+		if (current.speaker_id === next.speaker_id && gap <= 1.0) {
+			// Merge logic
+			current.end_ts = next.end_ts; // Extend end_ts
+			current.text = `${current.text} ${next.text}`;
+			current.avg_confidence = (current.avg_confidence + next.avg_confidence) / 2; // Simple approx
+		} else {
+			merged.push(current);
+			current = next;
+		}
+	}
+	merged.push(current);
+	return merged;
+}
+
+// Phase 2 Task 2.1: Classify turn intent
+function classifyTurnIntents(turns: Turn[]): Turn[] {
+	for (let i = 0; i < turns.length; i++) {
+		const turn = turns[i];
+		if (!turn) continue;
+
+		const role = turn.role;
+		const text = turn.text.trim();
+		const prevTurn = i > 0 ? turns[i - 1] : null;
+
+		if (role === 'interviewer' && text.includes('?')) {
+			turn.intent = 'question';
+		} else if (role === 'candidate' && prevTurn?.intent === 'question') {
+			turn.intent = 'answer';
+		} else {
+			turn.intent = 'other';
+		}
+	}
+	return turns;
+}
+
+// Phase 3 & 4: Build Spans & Score
+function buildQASpans(turns: Turn[]): QASpan[] {
+	const spans: QASpan[] = [];
 
 	for (let i = 0; i < turns.length; i++) {
 		const turn = turns[i];
-
 		if (!turn) continue;
 
-		// Only Interviewers ask questions (mostly)
-		// Or try to infer if role is missing/wrong?
-		// "Re-label roles correctly... explicit... or post-hoc"
-		// For now, we assume 'interviewer' role or try to detect question intent
+		if (turn.intent === 'question') {
+			// Start new span
+			const questionTurn = turn;
+			const answers: Turn[] = [];
 
-		const cleanText = turn.text.trim().toLowerCase();
-		const endsWithQuestionMark = turn.text.trim().endsWith('?');
-		const startsWithQuestionWord = questionWords.has(cleanText.split(' ')[0] || '');
-
-		// Is this a question?
-		const isQuestion =
-			(turn.role === 'interviewer' || turn.role === 'unknown') && (endsWithQuestionMark || startsWithQuestionWord);
-
-		if (isQuestion) {
-			// Look ahead for answers
-			const answers: string[] = [];
-			const answerTurnIds: string[] = [];
 			let j = i + 1;
-			let spanEndTs = turn.end_ts;
-
 			while (j < turns.length) {
 				const nextTurn = turns[j];
-
-				if (!nextTurn) break;
-
-				// Stop if next turn is another question from interviewer
-				// OR if speaker is same as questioner (monologue continuation?)
-				// OR if speaker is explicitly interviewer again
-
-				const isNextInterviewer = nextTurn.role === 'interviewer' || nextTurn.speaker_id === turn.speaker_id;
-
-				if (isNextInterviewer) {
-					// Check if this acts as a new question anchor
-					const nextClean = nextTurn.text.trim().toLowerCase();
-					const nextIsQuestion = nextClean.endsWith('?') || questionWords.has(nextClean.split(' ')[0] || '');
-					if (nextIsQuestion) {
-						break; // New question starts
-					}
-					// Else it might be a comment/backchannel, treat as part of interaction or stop?
-					// User: "Stop when interviewer meaningfully speaks again"
-					// We'll simplistic heuristic: if interviewer speaks for > 2 seconds, it breaks the answer
-					if (nextTurn.end_ts - nextTurn.start_ts > 2.0) {
-						break;
-					}
+				// Stop if no next turn or it's a question
+				if (!nextTurn || nextTurn.intent === 'question') {
+					break;
 				}
 
-				// It's a candidate answer (or assumed answer)
-				answers.push(nextTurn.text);
-				answerTurnIds.push(nextTurn.turn_id);
-				spanEndTs = nextTurn.end_ts;
+				// Collect candidate answers
+				if (nextTurn.role === 'candidate') {
+					answers.push(nextTurn);
+				}
+
 				j++;
 			}
 
+			// Edge rule: If no candidate answers -> discard span
 			if (answers.length > 0) {
+				const answerText = answers.map((a) => a.text).join(' ');
+				const answerIds = answers.map((a) => a.turn_id);
+				const spanStart = questionTurn.start_ts;
+				const lastAnswer = answers[answers.length - 1]; // We know answers.length > 0
+				const spanEnd = lastAnswer ? lastAnswer.end_ts : spanStart; // Fallback safe
+
+				// Phase 4: Signal Confidence
+				const candidateTime = answers.reduce((sum, a) => sum + (a.end_ts - a.start_ts), 0);
+				const totalSpanTime = spanEnd - spanStart;
+
+				const allSpanTurns = [questionTurn, ...answers];
+				const avgAsr = allSpanTurns.reduce((sum, t) => sum + t.avg_confidence, 0) / allSpanTurns.length;
+
+				// Iterruptions: check range [i+1, j]
+				let interruptions = 0;
+				for (let k = i + 1; k < j; k++) {
+					const t = turns[k];
+					if (t && t.role === 'interviewer' && t.intent !== 'question') {
+						interruptions++;
+					}
+				}
+
+				// Metric: "signal_confidence": 0.0 – 1.0
+				const ratio = totalSpanTime > 0 ? candidateTime / totalSpanTime : 0;
+				const interruptionPenalty = Math.min(0.5, interruptions * 0.1);
+
+				let sigConf = ratio * avgAsr * (1.0 - interruptionPenalty);
+				sigConf = Math.max(0, Math.min(1, sigConf)); // Clamp 0-1
+
 				spans.push({
 					span_id: uuidv4(),
-					question_turn_id: turn.turn_id,
-					answer_turn_ids: answerTurnIds,
-					question: turn.text,
-					answer: answers.join(' '),
-					start_ts: turn.start_ts,
-					end_ts: spanEndTs,
+					question_turn_id: questionTurn.turn_id,
+					answer_turn_ids: answerIds,
+					question: questionTurn.text,
+					answer: answerText,
+					start_ts: spanStart,
+					end_ts: spanEnd,
+					signal_confidence: Number(sigConf.toFixed(2)),
 				});
-
-				// Skip efficiently
-				i = j - 1;
 			}
+
+			// Optimization: Skip to where we stopped scanning
+			i = j - 1;
 		}
 	}
 	return spans;
@@ -262,24 +275,29 @@ export function processTranscript(rawSegments: TranscriptPart[]): TranscriptArti
 	// 1. Deduplicate
 	const canonical = deduplicateSegments(rawSegments);
 
-	// 2. Merge Turns
-	const turns = mergeTurns(canonical);
+	// 2. Merge Segments to Initial Turns
+	const initialTurns = mergeSegmentsToTurns(canonical);
 
-	// 3. (Implicit) Role Check - can't do much without external data,
-	// but we respect what's passed in the segments.
-	// If all roles are interviewer, QA Span logic handles it via heuristic checks.
+	// Phase 1: Turn Hygiene
+	// 1.1 Filter junk
+	const meaningfulTurns = initialTurns.filter(isMeaningfulTurn);
+	// 1.2 Merge micro-turns
+	const mergedTurns = mergeMicroTurns(meaningfulTurns);
 
-	// 4 & 5. Q/A Spans
-	const spans = constructQASpans(turns);
+	// Phase 2: Intent Classification
+	const classifiedTurns = classifyTurnIntents(mergedTurns);
 
-	const firstTurn = turns[0];
-	const lastTurn = turns[turns.length - 1];
+	// Phase 3 & 4: Q/A Spans & Signal
+	const spans = buildQASpans(classifiedTurns);
+
+	const firstTurn = classifiedTurns[0];
+	const lastTurn = classifiedTurns[classifiedTurns.length - 1];
 	const totalDuration = firstTurn && lastTurn ? lastTurn.end_ts - firstTurn.start_ts : 0;
 
 	return {
 		raw_segment_count: rawSegments.length,
 		canonical_segment_count: canonical.length,
-		turns: turns,
+		turns: classifiedTurns,
 		qa_spans: spans,
 		metadata: {
 			processed_at: new Date().toISOString(),

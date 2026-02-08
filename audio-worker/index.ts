@@ -10,7 +10,8 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
 import { processTranscript } from './transcript-processor';
-import type { TranscriptPart, TranscriptArtifact } from './transcript-processor';
+import type { TranscriptPart, TranscriptArtifact } from './types';
+import { extractEvidence, generateHireSignal } from './evidence-extractor';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -18,7 +19,7 @@ if (ffmpegPath) {
 	console.warn('ffmpeg-static path not found, audio conversion might fail.');
 }
 
-// Types for transcript segments
+// Types for transcript segments (Legacy/Internal use)
 interface TranscriptSegment {
 	speaker: string;
 	role: string;
@@ -155,7 +156,8 @@ const startSQSConsumer = async () => {
 								processingSuccess = true;
 							} else if (body.event === 'session_ended') {
 								console.log(`[SQS] Received session_ended for interview ${body.interviewId}. Finalizing transcript...`);
-								await handleSessionEnd(body.interviewId);
+								// Pass interviewType if available
+								await handleSessionEnd(body.interviewId, body.interviewType);
 								processingSuccess = true;
 							} else if (body.Records) {
 								// Assume success unless an error is thrown in the loop
@@ -394,7 +396,11 @@ async function processAudioChunk(bucket: string, key: string) {
 			console.log(`[${key}] Saved part file to s3://${bucket}/${partKey}`);
 
 			// 7. Regenerate merged transcript
-			await generateMergedTranscript(bucket, interviewFolder);
+			// Note: We don't pass interviewType here usually, as intermediate merges don't need full analysis
+			// But we can if we want partial results. For now, strict 'screening' or undefined default to skip expensive LLM?
+			// Let's skip LLM for intermediate chunks to save cost/latency.
+			// Only perform LLM at session end.
+			await generateMergedTranscript(bucket, interviewFolder, undefined);
 		} else {
 			console.log(`[${key}] No transcript content generated.`);
 		}
@@ -406,7 +412,7 @@ async function processAudioChunk(bucket: string, key: string) {
 }
 
 // Updated merge function to read individual part files
-async function generateMergedTranscript(bucket: string, interviewFolder: string) {
+async function generateMergedTranscript(bucket: string, interviewFolder: string, interviewType?: string) {
 	const partsPrefix = `${interviewFolder}/transcripts/parts/`;
 	const transcriptKey = `${interviewFolder}/transcripts/transcript.txt`;
 	const fullJsonParamsKey = `${interviewFolder}/transcripts/transcript.json`; // Requested JSON format
@@ -451,13 +457,27 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 		// Use the new transcript processor to clean, merge and structure the data
 		console.log(`[MERGE] Processing ${allParts.length} segments with advanced logic...`);
 		const processedArtifact = processTranscript(allParts);
+
+		// If we have interviewType and OpenAI key, perform analysis (Phases 6-8)
+		if (interviewType && process.env.OPENAI_API_KEY) {
+			console.log(`[MERGE] Performing Evidence Extraction & Analysis for type: ${interviewType}...`);
+			const evidence = await extractEvidence(openai, processedArtifact.qa_spans, interviewType);
+			const report = generateHireSignal(evidence, interviewType);
+
+			processedArtifact.report = {
+				evidence: evidence,
+				hire_signal: report,
+			};
+			console.log(`[MERGE] Analysis complete. Evidence count: ${evidence.length}, Signal: ${report.hire_signal}`);
+		}
+
 		console.log(
 			`[MERGE] Processed: ${processedArtifact.raw_segment_count} raw -> ${processedArtifact.canonical_segment_count} canonical segments -> ${processedArtifact.turns.length} turns.`
 		);
 
 		// Generate human-readable text from merged turns
 		const transcriptText = processedArtifact.turns
-			.map((turn) => `[${formatTimestamp(turn.start_ts * 1000)} - ${turn.role}] ${turn.text}`)
+			.map((turn) => `[${formatTimestamp(turn.start_ts * 1000)} - ${turn.role} (${turn.intent})] ${turn.text}`)
 			.join('\n\n');
 
 		// Save transcript.txt
@@ -488,7 +508,7 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 	}
 }
 
-async function handleSessionEnd(interviewId: string) {
+async function handleSessionEnd(interviewId: string, interviewType?: string) {
 	const S3_BUCKET = process.env.AWS_S3_BUCKET;
 	if (!S3_BUCKET) {
 		console.error('[SessionEnd] AWS_S3_BUCKET not set');
@@ -496,21 +516,26 @@ async function handleSessionEnd(interviewId: string) {
 	}
 
 	// 1. Force a final merge of the transcript to ensure consistency
-	console.log(`[SessionEnd] Performing final transcript merge for ${interviewId}`);
-	const finalArtifact = await generateMergedTranscript(S3_BUCKET, interviewId);
-
-	if (finalArtifact) {
-		console.log(`\n${'='.repeat(60)}`);
-		console.log(`FINAL TRANSCRIPT JSON for Interview: ${interviewId}`);
-		console.log(`${'='.repeat(60)}`);
-		console.log(JSON.stringify(finalArtifact, null, 2));
-		console.log(`${'='.repeat(60)}\n`);
-	} else {
-		console.warn(`[SessionEnd] Could not generate final transcript artifact for ${interviewId}`);
-	}
+	// Pass interviewType to enable AI analysis for this final merge
+	console.log(
+		`[SessionEnd] Performing final transcript merge for ${interviewId} (Type: ${interviewType || 'unknown/skip'})`
+	);
+	const finalArtifact = await generateMergedTranscript(S3_BUCKET, interviewId, interviewType);
 
 	// 2. Previously notified transcript worker, now processing locally.
 	// The artifact is already printed above.
+	// Future: Add AI analysis or other post-processing here using `finalArtifact`.
+	if (finalArtifact) {
+		console.log(`\n${'='.repeat(60)}`);
+		console.log(`FINAL TRANSCRIPT + REPORT JSON for Interview: ${interviewId}`);
+		console.log(`${'='.repeat(60)}`);
+		console.log(JSON.stringify(finalArtifact, null, 2));
+		console.log(`${'='.repeat(60)}\n`);
+
+		console.log(`[SessionEnd] Transcript ready for local processing/AI analysis.`);
+	} else {
+		console.warn(`[SessionEnd] Could not generate final transcript artifact for ${interviewId}`);
+	}
 	// Future: Add AI analysis or other post-processing here using `finalArtifact`.
 	if (finalArtifact) {
 		console.log(`[SessionEnd] Transcript ready for local processing/AI analysis.`);

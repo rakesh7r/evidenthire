@@ -539,3 +539,12 @@ export const getInterviewMetadataForRecording = async (interviewId: string) => {
     `;
 	return result[0];
 };
+
+export const getInterviewType = async (interviewId: string): Promise<string> => {
+	const result = await sql`
+        SELECT round_type 
+        FROM interview 
+        WHERE id = ${interviewId}
+    `;
+	return result[0]?.round_type || 'screening';
+};
