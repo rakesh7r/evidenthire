@@ -47,6 +47,7 @@ export const createDatabaseTables = async () => {
               id          uuid primary key DEFAULT gen_random_uuid(),
               email       text not null,
               name        text,
+              cv_analysis jsonb,
               created_at  timestamptz not null default now()
             )`;
 		console.log('Candidate table created successfully');
@@ -58,27 +59,38 @@ export const createDatabaseTables = async () => {
               organization_id  uuid references organization(id),
               title            text not null,
               requirements     jsonb,
+              rounds           jsonb DEFAULT '[]'::jsonb,
               status           text check (status in ('open','closed')),
               created_at       timestamptz not null default now()
             )`;
 		/*
       requirements schema
-      {
-        "skills": [
-          { "name": "system_design", "level": "senior" },
-          { "name": "postgres", "level": "intermediate" },
-          { "name": "distributed_systems", "level": "basic" }
-        ],
-        "interview_types": ["technical", "system_design"],
-        "evaluation_weights": {
-          "communication": 0.3,
-          "problem_solving": 0.4,
-          "depth": 0.3
-        }
-      }
-
+      ...
+    */
+		/*
+      rounds schema
+      [
+        { "title": "Phone Screen", "type": "cultural_fit", "duration_minutes": 30 },
+        { "title": "System Design", "type": "system_design", "duration_minutes": 60 }
+      ]
     */
 		console.log('Position table created successfully');
+		// =========================
+		// APPLICATION (tracks job applications with resumes)
+		// =========================
+		await sql`CREATE TABLE IF NOT EXISTS application (
+              id               uuid primary key DEFAULT gen_random_uuid(),
+              position_id      uuid references position(id) NOT NULL,
+              email            text not null,
+              name             text,
+              resume_s3_url    text,
+              cv_analysis      jsonb,
+              status           text check (status in ('pending','reviewed','shortlisted','rejected')) DEFAULT 'pending',
+              created_at       timestamptz not null default now(),
+              updated_at       timestamptz not null default now(),
+              UNIQUE(email, position_id)
+            )`;
+		console.log('Application table created successfully');
 		// =========================
 		// INTERVIEW
 		// =========================
@@ -89,15 +101,42 @@ export const createDatabaseTables = async () => {
               scheduled_start   timestamptz not null,
               scheduled_end     timestamptz,
               status            text check (
-                                  status in ('scheduled','in_progress','completed','cancelled')
-                                ),
+                                  status in ('scheduled','in_progress','completed','cancelled','no_show','expired')
+                                ) DEFAULT 'scheduled',
               evidence_state    text check (
                                   evidence_state in ('complete','partial','deleted')
                                 ) default 'complete',
               livekit_room_id   text,
+              -- Round Information
+              round_title       text,
+              round_type        text,
+              -- New fields for lifecycle management
+              first_join_at     timestamptz,
+              last_activity_at  timestamptz,
+              actual_end_at     timestamptz,
+              ended_reason      text check (
+                                  ended_reason in ('normal','timeout','cancelled','no_show','interviewer_ended','technical_issue')
+                                ),
+              -- Waiting room support
+              waiting_room_enabled boolean DEFAULT true,
+              candidate_admitted boolean DEFAULT false,
+              candidate_waiting_since timestamptz,
+              -- Duration tracking
+              total_duration_ms integer,
+              -- Configuration (can be set per-interview, defaults set in code)
+              max_duration_minutes integer DEFAULT 120,
+              -- Audio storage (session-less)
+              audio_folder_path text,
+              last_chunk_index  integer DEFAULT 0,
+              report_s3_url     text,
               created_at        timestamptz not null default now()
             )`;
+
+		// Ensure column exists for existing tables
+		await sql`ALTER TABLE interview ADD COLUMN IF NOT EXISTS report_s3_url text`;
+
 		console.log('Interview table created successfully');
+
 		// =========================
 		// INTERVIEW PARTICIPANTS (M:N)
 		// =========================
@@ -116,12 +155,18 @@ export const createDatabaseTables = async () => {
 		await sql`CREATE TABLE IF NOT EXISTS media_chunk (
               id              uuid primary key DEFAULT gen_random_uuid(),
               interview_id    uuid references interview(id),
+              participant_identity text,
               s3_uri          text not null,
+              chunk_index     integer,
               start_offset_ms integer not null,
               end_offset_ms   integer not null,
+              duration_ms     integer,
               speaker_type    text check (
                                 speaker_type in ('candidate','interviewer','unknown')
                               ),
+              transcription_status text check (
+                                transcription_status in ('pending','processing','completed','failed')
+                              ) DEFAULT 'pending',
               created_at      timestamptz not null default now(),
               deleted_at      timestamptz,
               deleted_by      uuid references user_account(id)

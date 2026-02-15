@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { createEvent, type EventAttributes } from 'ics';
+import logger from '../lib/logger';
 
 // Configure Nodemailer transporter for Brevo
 const transporter = nodemailer.createTransport({
@@ -17,9 +18,7 @@ const transporter = nodemailer.createTransport({
  */
 export const sendEmail = async (to: string | string[], subject: string, html: string, attachments?: any[]) => {
 	if (!process.env.BREVO_SMTP_USER || !process.env.BREVO_SMTP_PASS) {
-		console.log('Skipping email send - SMTP credentials not set');
-		console.log('To:', to);
-		console.log('Subject:', subject);
+		logger.info({ to, subject }, 'Skipping email send - SMTP credentials not set');
 		return { messageId: 'mock_id' };
 	}
 
@@ -32,10 +31,10 @@ export const sendEmail = async (to: string | string[], subject: string, html: st
 			html,
 			attachments,
 		});
-		console.log('Message sent: %s', info.messageId);
+		logger.info({ messageId: info.messageId }, 'Email message sent');
 		return info;
 	} catch (error) {
-		console.error('Failed to send email:', error);
+		logger.error({ error: String(error) }, 'Failed to send email');
 		throw error;
 	}
 };
@@ -63,12 +62,17 @@ export const notifyInterviewScheduled = async (data: {
 	scheduledStart: Date;
 	interviewerEmails: string[];
 	candidateAccessKey?: string | null;
+	roundTitle?: string | null;
 }) => {
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-	// Base link
-	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
+	const positionText = data.roundTitle ? `${data.positionTitle} - ${data.roundTitle}` : data.positionTitle;
+
+	// Base link (handle trailing slash in APP_URL)
+	const cleanAppUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+	const baseLink = `${cleanAppUrl}/interview/${data.interviewId}`;
+
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
@@ -90,8 +94,8 @@ export const notifyInterviewScheduled = async (data: {
 		const eventData: EventAttributes = {
 			start: startArr,
 			duration: { hours: 1 },
-			title: `Interview: ${data.positionTitle}`,
-			description: `Interview for ${data.positionTitle} position.\n\nJoin Link: ${candidateJoinLink}`,
+			title: `Interview: ${positionText}`,
+			description: `Interview for ${positionText}.\n\nJoin Link: ${candidateJoinLink}`,
 			location: 'EvidentHire Video Room',
 			url: candidateJoinLink,
 			organizer: { name: 'EvidentHire', email: 'no-reply@evidenthire.in' },
@@ -107,7 +111,7 @@ export const notifyInterviewScheduled = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for candidate', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for candidate');
 	}
 
 	// 1. Email to Candidate
@@ -118,13 +122,18 @@ export const notifyInterviewScheduled = async (data: {
         <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
             <h2 style="color: #f97316;">Interview Scheduled</h2>
             <p>Hi ${data.candidateName},</p>
-            <p>We are excited to move forward with your application for the <strong>${data.positionTitle}</strong> position.</p>
+            <p>We are excited to move forward with your application for the <strong>${
+							data.positionTitle
+						}</strong> position.</p>
+			${data.roundTitle ? `<p>This interview is for the <strong>${data.roundTitle}</strong> round.</p>` : ''}
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 0;"><strong>Date:</strong> ${dateStr}</p>
                 <p style="margin: 5px 0 0 0;"><strong>Time:</strong> ${timeStr}</p>
             </div>
             <p>You can join the interview directly through our lobby below:</p>
             <a href="${candidateJoinLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">Join Interview Lobby</a>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="${candidateJoinLink}" style="color: #f97316;">${candidateJoinLink}</a></p>
             <p>Please make sure to check your audio and video settings before joining.</p>
             <p>Best regards,<br>The Recruitment Team</p>
         </div>
@@ -146,8 +155,8 @@ export const notifyInterviewScheduled = async (data: {
 		const eventData: EventAttributes = {
 			start: startArr,
 			duration: { hours: 1 },
-			title: `Interview: ${data.candidateName} (${data.positionTitle})`,
-			description: `Interview with ${data.candidateName} for ${data.positionTitle}.\n\nJoin Link: ${baseLink}`,
+			title: `Interview: ${data.candidateName} (${positionText})`,
+			description: `Interview with ${data.candidateName} for ${positionText}.\n\nJoin Link: ${baseLink}`,
 			location: 'EvidentHire Video Room',
 			url: baseLink,
 			organizer: { name: 'EvidentHire', email: 'no-reply@evidenthire.in' },
@@ -162,7 +171,7 @@ export const notifyInterviewScheduled = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for interviewer', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for interviewer');
 	}
 
 	// 2. Email to Interviewers
@@ -183,7 +192,7 @@ export const notifyInterviewScheduled = async (data: {
                 </div>
                 <div style="margin: 20px 0;">
                     <a href="${baseLink}?isInterviewer=true" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">Join Interview</a>
-                    <a href="${process.env.APP_URL}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
+                    <a href="${cleanAppUrl}/dashboard" style="display: inline-block; background: #334155; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Dashboard</a>
                 </div>
                 <p>Please review the candidate's profile and the interview guidelines in the dashboard.</p>
             </div>
@@ -238,7 +247,10 @@ export const notifyInterviewUpdated = async (data: {
 	// Reuse logic from scheduled but change title/subject
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
+	// Base link (handle trailing slash in APP_URL)
+	const cleanAppUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+	const baseLink = `${cleanAppUrl}/interview/${data.interviewId}`;
+
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
 				data.candidateAccessKey
@@ -276,7 +288,7 @@ export const notifyInterviewUpdated = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for candidate update', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for candidate update');
 	}
 
 	// 1. Email to Candidate
@@ -294,6 +306,8 @@ export const notifyInterviewUpdated = async (data: {
             </div>
             <p>You can join using the same link:</p>
             <a href="${candidateJoinLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">Join Interview Lobby</a>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">Full link:<br>
+            <a href="${candidateJoinLink}" style="color: #f97316;">${candidateJoinLink}</a></p>
         </div>
         `,
 		candidateIcsAttachment
@@ -329,7 +343,7 @@ export const notifyInterviewUpdated = async (data: {
 			},
 		];
 	} catch (e) {
-		console.error('Failed to generate ICS for interviewer update', e);
+		logger.error({ error: String(e) }, 'Failed to generate ICS for interviewer update');
 	}
 
 	// 2. Email to Interviewers
@@ -373,8 +387,10 @@ export const resendCandidateReminder = async (data: {
 	const dateStr = data.scheduledStart.toLocaleDateString();
 	const timeStr = data.scheduledStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-	// Base link
-	const baseLink = `${process.env.APP_URL}/interview/${data.interviewId}`;
+	// Base link (handle trailing slash in APP_URL)
+	const cleanAppUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+	const baseLink = `${cleanAppUrl}/interview/${data.interviewId}`;
+
 	// Candidate specific link with auth params
 	const candidateJoinLink = data.candidateAccessKey
 		? `${baseLink}?email=${encodeURIComponent(data.candidateEmail)}&candidate_access_key=${
@@ -396,9 +412,36 @@ export const resendCandidateReminder = async (data: {
             </div>
             <p>You can join the interview directly using the link below:</p>
             <a href="${candidateJoinLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">Join Interview Lobby</a>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">Full link:<br>
+            <a href="${candidateJoinLink}" style="color: #f97316;">${candidateJoinLink}</a></p>
             <p>Please make sure to check your audio and video settings before joining.</p>
             <p>Best regards,<br>The Recruitment Team</p>
         </div>
         `
 	);
+};
+
+/**
+ * Notify candidate about application rejection
+ */
+export const notifyApplicationRejected = async (data: {
+	candidateEmail: string;
+	candidateName: string;
+	positionTitle: string;
+	organizationName?: string;
+}) => {
+	const orgName = data.organizationName || 'The Recruitment Team';
+	const subject = `Update on your application for ${data.positionTitle}`;
+
+	const content = `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <p>Hi ${data.candidateName},</p>
+            <p>Thank you for giving us the opportunity to consider your application for the <strong>${data.positionTitle}</strong> role.</p>
+            <p>We have reviewed your application and qualifications. While your background is impressive, we have decided to move forward with other candidates who more closely align with our current needs for this position.</p>
+            <p>We appreciate your interest in joining our team and wish you the best in your job search.</p>
+            <p>Sincerely,<br>${orgName}</p>
+        </div>
+    `;
+
+	return await sendEmail(data.candidateEmail, subject, content);
 };

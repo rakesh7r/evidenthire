@@ -1,4 +1,5 @@
 import { sql } from '../db';
+import logger from '../lib/logger';
 import {
 	notifyInterviewScheduled,
 	notifyInterviewCancelled,
@@ -33,6 +34,47 @@ export const getInterviewsByOrg = async (userId: string) => {
     `;
 };
 
+// ... (existing code for getInterviewsByOrg)
+
+export const getInterviewsByPosition = async (userId: string, positionId: string) => {
+	const user = await sql`SELECT organization_id FROM user_account WHERE id = ${userId}`;
+	const organization_id = user[0]?.organization_id;
+
+	if (!organization_id) {
+		return [];
+	}
+
+	return await sql`
+        SELECT 
+            i.*, 
+            c.name as candidate_name, 
+            c.email as candidate_email,
+            p.title as position_title,
+            (
+                SELECT array_agg(user_id) 
+                FROM interview_participant 
+                WHERE interview_id = i.id
+            ) as interviewer_ids,
+            (
+                SELECT json_agg(
+                    json_build_object(
+                        'user_id', ip.user_id, 
+                        'full_name', u.full_name,
+                        'email', u.email
+                    )
+                )
+                FROM interview_participant ip
+                JOIN user_account u ON ip.user_id = u.id
+                WHERE ip.interview_id = i.id AND ip.role = 'interviewer'
+            ) as interviewers
+        FROM interview i
+        JOIN candidate c ON i.candidate_id = c.id
+        JOIN position p ON i.position_id = p.id
+        WHERE i.position_id = ${positionId} AND p.organization_id = ${organization_id}
+        ORDER BY i.scheduled_start DESC
+    `;
+};
+
 export const getInterviewById = async (userId: string, interviewId: string) => {
 	const user = await sql`SELECT organization_id FROM user_account WHERE id = ${userId}`;
 	const organization_id = user[0]?.organization_id;
@@ -47,6 +89,7 @@ export const getInterviewById = async (userId: string, interviewId: string) => {
             c.name as candidate_name, 
             c.email as candidate_email,
             p.title as position_title,
+            p.organization_id,
             (
                 SELECT array_agg(user_id) 
                 FROM interview_participant 
@@ -70,6 +113,7 @@ export const getPublicInterviewById = async (interviewId: string) => {
             c.name as candidate_name, 
             c.email as candidate_email,
             p.title as position_title,
+            p.organization_id,
             o.name as organization_name,
              (
                 SELECT array_agg(user_id) 
@@ -110,19 +154,21 @@ export const verifyInterviewAccess = async (
 
 	// 2. Check if Interviewer (Authenticated User)
 	if (userId) {
-		// Here we rely on the fact that interviewer_ids contains user_ids
-		// But getPublicInterviewById returns standard array.
-		// We need to verify if userId is in interviewer_ids
-		if (interview.interviewer_ids && interview.interviewer_ids.includes(userId)) {
-			// Fetch user name for identity
-			const user = await sql`SELECT full_name, email FROM user_account WHERE id = ${userId}`;
-			const userData = user[0];
-			if (!userData) return null;
-			return {
-				role: 'interviewer',
-				name: userData?.full_name || userData?.email || 'Interviewer',
-				identity: `interviewer-${userData.email}`,
-			};
+		const user = await sql`SELECT organization_id, role, full_name, email FROM user_account WHERE id = ${userId}`;
+		const userData = user[0];
+
+		if (userData) {
+			const isAssigned = interview.interviewer_ids && interview.interviewer_ids.includes(userId);
+			const isOrgAdmin =
+				userData.organization_id === interview.organization_id && ['admin', 'recruiter'].includes(userData.role);
+
+			if (isAssigned || isOrgAdmin) {
+				return {
+					role: 'interviewer',
+					name: userData.full_name || userData.email || 'Interviewer',
+					identity: `interviewer-${userData.email}`,
+				};
+			}
 		}
 	}
 
@@ -135,9 +181,12 @@ export const createInterview = async (
 		candidateName: string;
 		candidateEmail: string;
 		positionId: string;
-		date: string;
-		time: string;
+		date?: string;
+		time?: string;
+		scheduledStart?: string;
 		interviewerIds: string[];
+		roundTitle?: string;
+		roundType?: string;
 	}
 ) => {
 	const user = await sql`SELECT organization_id, role FROM user_account WHERE id = ${userId}`;
@@ -170,16 +219,19 @@ export const createInterview = async (
 		}
 
 		const candidateId = candidate[0].id;
-		const scheduledStart = new Date(`${data.date}T${data.time}`);
+		const scheduledStart = data.scheduledStart ? new Date(data.scheduledStart) : new Date(`${data.date}T${data.time}`);
 
 		// 2. Create interview
 		// Generate a random access key for the candidate
 		const candidateAccessKey =
 			Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+		const roundTitle = data.roundTitle || null;
+		const roundType = data.roundType || null;
+
 		const interview = await tx`
-            INSERT INTO interview (position_id, candidate_id, scheduled_start, status, candidate_access_key)
-            VALUES (${data.positionId}, ${candidateId}, ${scheduledStart}, 'scheduled', ${candidateAccessKey})
+            INSERT INTO interview (position_id, candidate_id, scheduled_start, status, candidate_access_key, round_title, round_type)
+            VALUES (${data.positionId}, ${candidateId}, ${scheduledStart}, 'scheduled', ${candidateAccessKey}, ${roundTitle}, ${roundType})
             RETURNING *
         `;
 
@@ -235,10 +287,11 @@ export const createInterview = async (
 				scheduledStart: new Date(interview.scheduled_start),
 				interviewerEmails: interview.interviewer_emails || [],
 				candidateAccessKey: interview.candidate_access_key,
+				roundTitle: interview.round_title,
 			});
 		}
 	} catch (err) {
-		console.error('Failed to send notification emails:', err);
+		logger.error({ error: String(err) }, 'Failed to send notification emails');
 	}
 
 	return result;
@@ -253,7 +306,10 @@ export const updateInterview = async (
 		positionId?: string;
 		date?: string;
 		time?: string;
+		scheduledStart?: string;
 		interviewerIds?: string[];
+		roundTitle?: string;
+		roundType?: string;
 		status?: string;
 	}
 ) => {
@@ -296,7 +352,9 @@ export const updateInterview = async (
 		const interviewUpdate: any = {};
 		if (data.positionId) interviewUpdate.position_id = data.positionId;
 		if (data.status) interviewUpdate.status = data.status;
-		if (data.date || data.time) {
+		if (data.scheduledStart) {
+			interviewUpdate.scheduled_start = new Date(data.scheduledStart);
+		} else if (data.date || data.time) {
 			// Need to fetch existing date/time if only one provided
 			const current = await tx`SELECT scheduled_start FROM interview WHERE id = ${interviewId}`;
 			const row = current[0];
@@ -374,7 +432,7 @@ export const updateInterview = async (
 			});
 		}
 	} catch (err) {
-		console.error('Failed to send update notification:', err);
+		logger.error({ error: String(err) }, 'Failed to send update notification');
 	}
 
 	return result;
@@ -451,7 +509,7 @@ export const deleteInterview = async (userId: string, interviewId: string) => {
 				interviewerEmails: interview.interviewer_emails || [],
 			});
 		} catch (err) {
-			console.error('Failed to send cancellation emails:', err);
+			logger.error({ error: String(err) }, 'Failed to send cancellation emails');
 		}
 	}
 
@@ -522,4 +580,13 @@ export const getInterviewMetadataForRecording = async (interviewId: string) => {
         WHERE i.id = ${interviewId}
     `;
 	return result[0];
+};
+
+export const getInterviewType = async (interviewId: string): Promise<string> => {
+	const result = await sql`
+        SELECT round_type 
+        FROM interview 
+        WHERE id = ${interviewId}
+    `;
+	return result[0]?.round_type || 'screening';
 };

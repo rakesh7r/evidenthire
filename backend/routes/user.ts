@@ -17,10 +17,14 @@ user.use('/*', authMiddleware);
 
 user.get('/me', async (c) => {
 	const supabaseUser = c.get('user');
-	if (!supabaseUser) {
+	if (!supabaseUser || !supabaseUser.email) {
 		return c.json({ error: 'Unauthorized' }, 401);
 	}
 	try {
+		// First, ensure the user exists and ID is synced (handles invited users with mismatched IDs)
+		await createUser({ id: supabaseUser.id, email: supabaseUser.email });
+
+		// Now fetch the full user data
 		const user = await getUserById(supabaseUser.id);
 		if (!user) {
 			return c.json({ error: 'User not found', searchedId: supabaseUser.id }, 404);

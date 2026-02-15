@@ -1,98 +1,71 @@
 import {
 	AccessToken,
 	EgressClient,
-	EncodedFileOutput,
 	EncodedFileType,
 	SegmentedFileOutput,
 	SegmentedFileProtocol,
 	S3Upload,
 	AudioCodec,
 } from 'livekit-server-sdk';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getInterviewMetadataForRecording } from './interview.service';
+import { getOrCreateAudioFolder, persistChunkIndex, getNextAudioChunkIndex } from './interview-audio.service';
+import { sql } from '../db';
+import { redis } from '../redis';
+import logger from '../lib/logger';
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
 
 if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
-	console.warn('LiveKit environment variables are missing. Video calls will not work.');
+	logger.warn('LiveKit environment variables are missing. Video calls will not work.');
 }
 
 const s3Client = new S3Client({
-	region: process.env.AWS_REGION || 'us-east-1',
+	region: process.env.AWS_REGION || 'ap-south-1',
 	credentials: {
 		accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
 		secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
 	},
 });
 
-const getNextSessionId = async (bucket: string, prefix: string): Promise<string> => {
+/**
+ * Get interview start time (T0) from DB or Redis
+ * This serves as the anchor for calculating audio offsets properly
+ */
+const getInterviewStartTime = async (interviewId: string): Promise<number> => {
+	const cacheKey = `interview:${interviewId}:start_time`;
 	try {
-		console.log(`Checking sessions in bucket: ${bucket} with prefix: ${prefix}`);
-		const command = new ListObjectsV2Command({
-			Bucket: bucket,
-			Prefix: prefix.endsWith('/') ? prefix : `${prefix}/`,
-			Delimiter: '/',
-		});
-		const response = await s3Client.send(command);
-		const commonPrefixes = response.CommonPrefixes || [];
-
-		let maxSession = 0;
-		for (const p of commonPrefixes) {
-			const parts = p.Prefix?.split('/') || [];
-			// parts might be ["prefix", "...", "session1", ""]
-			const folderName = parts[parts.length - 2];
-			if (folderName && folderName.startsWith('session')) {
-				const num = parseInt(folderName.replace('session', ''), 10);
-				if (!isNaN(num) && num > maxSession) {
-					maxSession = num;
-				}
-			}
+		const cachedTime = await redis.get(cacheKey);
+		if (cachedTime) {
+			logger.info({ interviewId, time: cachedTime }, 'Got interview start time from Redis');
+			return parseInt(cachedTime, 10);
 		}
-
-		return `session${maxSession + 1}`;
-	} catch (error) {
-		console.error('Error fetching next session ID:', error);
-		return 'session1'; // Default start
-	}
-};
-
-// Cache to track active session per interview
-// This ensures all participants joining the same session use the same session ID
-// Session expires after SESSION_TTL_MS of inactivity (e.g., when interview ends and restarts)
-const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const activeSessionCache: Map<string, { sessionId: string; expiresAt: number }> = new Map();
-
-const getOrCreateSessionId = async (bucket: string, interviewId: string, sessionsBasePath: string): Promise<string> => {
-	const now = Date.now();
-	const cached = activeSessionCache.get(interviewId);
-
-	// If we have a valid cached session (not expired), use it
-	if (cached && cached.expiresAt > now) {
-		// Extend the TTL since there's activity
-		cached.expiresAt = now + SESSION_TTL_MS;
-		console.log(`Using cached session for interview ${interviewId}: ${cached.sessionId}`);
-		return cached.sessionId;
+	} catch (e) {
+		logger.warn({ error: String(e) }, 'Redis get error');
 	}
 
-	// No valid cache, fetch the next session ID from S3
-	const sessionId = await getNextSessionId(bucket, sessionsBasePath);
+	// Fetch from DB
+	const result = await sql`SELECT first_join_at FROM interview WHERE id = ${interviewId}`;
 
-	// Cache it with TTL
-	activeSessionCache.set(interviewId, {
-		sessionId,
-		expiresAt: now + SESSION_TTL_MS,
-	});
+	// If first_join_at is null (first person joining), use NOW
+	let startTime: number;
+	if (result[0]?.first_join_at) {
+		startTime = new Date(result[0].first_join_at).getTime();
+	} else {
+		startTime = Date.now();
+		// We don't update DB here; recordParticipantJoin in access service does that
+	}
 
-	console.log(`Created new session for interview ${interviewId}: ${sessionId}`);
-	return sessionId;
-};
+	// Cache it
+	try {
+		await redis.set(cacheKey, startTime);
+	} catch (e) {
+		logger.warn({ error: String(e) }, 'Redis set error');
+	}
 
-// Function to invalidate session cache (call when interview ends)
-export const invalidateSessionCache = (interviewId: string) => {
-	activeSessionCache.delete(interviewId);
-	console.log(`Session cache invalidated for interview ${interviewId}`);
+	return startTime;
 };
 
 export const createAccessToken = async (
@@ -123,22 +96,19 @@ export const startRoomAudioRecording = async (roomName: string, interviewId: str
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
-	// The destination will be a file named after the interview
-	// Note: RoomCompositeEgress supports MP4, OGG, MP3.
 	const fileOutput: any = {
 		fileType: EncodedFileType.MP3,
 		filepath: `interview-${interviewId}.mp3`,
 	};
 
 	try {
-		// startRoomCompositeEgress expects (roomName, output, options)
 		const egress = await egressClient.startRoomCompositeEgress(roomName, fileOutput, {
 			audioOnly: true,
 		});
-		console.log(`Started egress: ${egress.egressId} for room ${roomName}`);
+		logger.info({ egressId: egress.egressId, roomName }, 'Started room composite egress');
 		return egress;
 	} catch (error) {
-		console.error('Failed to start egress:', error);
+		logger.error({ error: String(error), roomName }, 'Failed to start egress');
 		throw error;
 	}
 };
@@ -156,41 +126,113 @@ export const startTrackAudioRecording = async (
 	const s3Bucket = process.env.AWS_S3_BUCKET;
 	const s3AccessKey = process.env.AWS_ACCESS_KEY_ID;
 	const s3Secret = process.env.AWS_SECRET_ACCESS_KEY;
-	const s3Region = process.env.AWS_REGION || 'us-east-1';
+	const s3Region = process.env.AWS_REGION || 'ap-south-1';
+
+	logger.info(
+		{ s3Bucket, s3Region, hasAccessKey: !!s3AccessKey, hasSecret: !!s3Secret },
+		'[LIVEKIT-SERVICE] Starting track egress setup'
+	);
 
 	if (!s3Bucket || !s3AccessKey || !s3Secret) {
-		console.warn('S3 credentials missing. Cannot start direct S3 egress.');
+		logger.warn('S3 credentials missing. Cannot start direct S3 egress.');
 		return;
 	}
 
 	const metadata = await getInterviewMetadataForRecording(interviewId);
 	if (!metadata) {
-		console.warn(`Metadata not found for interview ${interviewId}, cannot construct path.`);
+		logger.warn(`Metadata not found for interview ${interviewId}, cannot construct path.`);
 		return;
 	}
 
-	// Determine session ID - uses cache to ensure all participants in the same session use the same ID
-	const sessionsBasePath = `${metadata.id}/sessions`;
-	const sessionId = await getOrCreateSessionId(s3Bucket, interviewId, sessionsBasePath);
+	// Get or create the audio folder (session-less, single folder per interview)
+	const { audioFolderPath } = await getOrCreateAudioFolder(interviewId);
 
-	const basePath = `${sessionsBasePath}/${sessionId}`;
-
-	// Extract email from identity
+	// Extract email and role from identity
 	let email = 'unknown';
+	let role: 'candidate' | 'interviewer' | 'observer' = 'interviewer';
 	if (participantIdentity) {
 		if (participantIdentity.startsWith('candidate-')) {
 			email = participantIdentity.replace('candidate-', '');
+			role = 'candidate';
 		} else if (participantIdentity.startsWith('interviewer-')) {
 			email = participantIdentity.replace('interviewer-', '');
+			role = 'interviewer';
 		} else {
 			email = participantIdentity;
 		}
 	}
 
-	// Filename prefix: .../sessionX/<email>
+	// Get interview start time for offset calculation
+	const interviewStartTime = await getInterviewStartTime(interviewId);
+	const trackStartTime = Date.now();
+	const trackStartOffsetMs = trackStartTime - interviewStartTime;
+
+	const s3AudioPrefix = `${audioFolderPath}/${email}`;
+	const s3MetadataUri = `${audioFolderPath}/track_${email}.json`;
+
+	// Store active participant info in Redis for easy lookup during processing
+	// This replaces the session_participant table for now
+	const redisKey = `interview:${interviewId}:track:${trackId}`;
+	const trackInfo = {
+		email,
+		role,
+		trackId,
+		trackOffsetMs: trackStartOffsetMs,
+		s3AudioPrefix,
+		s3MetadataUri,
+		joinedAt: new Date().toISOString(),
+	};
+
+	try {
+		await redis.set(redisKey, JSON.stringify(trackInfo));
+		// Set expiry for 24 hours just in case
+		await redis.expire(redisKey, 86400);
+		logger.info({ redisKey }, 'Stored track metadata in Redis');
+	} catch (error) {
+		logger.error({ error: String(error), redisKey }, 'Failed to store track metadata in Redis');
+	}
+
+	// Write track metadata to S3 for timeline anchoring
+	// Now stored in the shared audio folder (not session-specific)
+	const trackMetadata = {
+		trackId,
+		participantIdentity,
+		email,
+		role,
+		interviewId,
+		interviewStartTime,
+		trackStartTime,
+		trackStartOffsetMs,
+		createdAt: new Date().toISOString(),
+		// session info removed
+	};
+
+	const trackMetadataKey = `${audioFolderPath}/track_${email}.json`;
+	try {
+		await s3Client.send(
+			new PutObjectCommand({
+				Bucket: s3Bucket,
+				Key: trackMetadataKey,
+				Body: JSON.stringify(trackMetadata, null, 2),
+				ContentType: 'application/json',
+			})
+		);
+		logger.info({ trackMetadataKey }, 'Track metadata written to S3');
+	} catch (err) {
+		logger.error({ error: String(err), trackMetadataKey }, 'Failed to write track metadata to S3');
+	}
+
+	// Get the next incremental index for this egress session to prevent overwrites
+	// and maintain an order.
+	const egressId = await getNextAudioChunkIndex(interviewId);
+
+	// Filename prefix: <interview_id>/audio/<email>_<egress_id>
 	// LiveKit will append _0000.ts, _0001.ts, etc.
-	const filenamePrefix = `${basePath}/${email}`;
-	const playlistName = `playlist_${email}.m3u8`;
+	// resulting in: <email>_<egress_id>_00000.ts
+	const filenamePrefix = `${audioFolderPath}/${email}_${egressId}`;
+	const playlistName = `playlist_${email}_${egressId}.m3u8`;
+
+	logger.info({ s3Bucket, filenamePrefix, playlistName, egressId }, '[LIVEKIT] Starting track egress');
 
 	const egressClient = new EgressClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
@@ -217,17 +259,18 @@ export const startTrackAudioRecording = async (
 		const egress = await egressClient.startTrackCompositeEgress(roomName, output, {
 			audioTrackId: trackId,
 			encodingOptions: {
-				audioCodec: AudioCodec.AAC, // AAC is standard for HLS, produces .ts or .m4s segments
+				audioCodec: AudioCodec.AAC,
 				audioBitrate: 128000,
 				audioFrequency: 48000,
 			} as any,
 		});
-		console.log(
-			`Started segmented track egress: ${egress.egressId} for track ${trackId} in session ${sessionId} for ${email}`
+		logger.info(
+			{ egressId: egress.egressId, trackId, email, offset: trackStartOffsetMs },
+			'Started segmented track egress'
 		);
 		return egress;
 	} catch (error) {
-		console.error('Failed to start track egress:', error);
+		logger.error({ error: String(error), trackId, email }, 'Failed to start track egress');
 		throw error;
 	}
 };

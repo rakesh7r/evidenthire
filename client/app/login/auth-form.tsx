@@ -31,8 +31,89 @@ export default function AuthForm() {
 		<Auth
 			supabaseClient={supabase}
 			view='sign_in'
-			appearance={{ theme: ThemeSupa }}
-			theme='light'
+			appearance={{
+				theme: ThemeSupa,
+				variables: {
+					default: {
+						colors: {
+							brand: '#ea580c',
+							brandAccent: '#f97316',
+							brandButtonText: 'white',
+							defaultButtonBackground: '#334155',
+							defaultButtonBackgroundHover: '#475569',
+							defaultButtonBorder: '#475569',
+							defaultButtonText: 'white',
+							dividerBackground: '#475569',
+							inputBackground: '#1e293b',
+							inputBorder: '#475569',
+							inputBorderHover: '#64748b',
+							inputBorderFocus: '#f97316',
+							inputText: 'white',
+							inputLabelText: '#94a3b8',
+							inputPlaceholder: '#64748b',
+							messageText: '#94a3b8',
+							messageTextDanger: '#f87171',
+							anchorTextColor: '#fb923c',
+							anchorTextHoverColor: '#fdba74',
+						},
+						space: {
+							spaceSmall: '4px',
+							spaceMedium: '8px',
+							spaceLarge: '16px',
+							labelBottomMargin: '8px',
+							anchorBottomMargin: '4px',
+							emailInputSpacing: '4px',
+							socialAuthSpacing: '8px',
+							buttonPadding: '12px 16px',
+							inputPadding: '12px 16px',
+						},
+						fontSizes: {
+							baseBodySize: '14px',
+							baseInputSize: '14px',
+							baseLabelSize: '14px',
+							baseButtonSize: '14px',
+						},
+						fonts: {
+							bodyFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+							buttonFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+							inputFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+							labelFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+						},
+						borderWidths: {
+							buttonBorderWidth: '1px',
+							inputBorderWidth: '1px',
+						},
+						radii: {
+							borderRadiusButton: '9999px',
+							buttonBorderRadius: '9999px',
+							inputBorderRadius: '12px',
+						},
+					},
+				},
+				style: {
+					button: {
+						fontWeight: '600',
+						transition: 'all 0.2s ease',
+					},
+					anchor: {
+						fontWeight: '500',
+					},
+					container: {
+						gap: '16px',
+					},
+					label: {
+						fontWeight: '500',
+					},
+					input: {
+						transition: 'all 0.2s ease',
+					},
+					message: {
+						borderRadius: '8px',
+						padding: '12px',
+					},
+				},
+			}}
+			theme='dark'
 			showLinks={true}
 			providers={[]}
 			redirectTo={

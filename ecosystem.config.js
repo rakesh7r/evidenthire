@@ -19,13 +19,23 @@ module.exports = {
             },
         },
         // {
-        //     name: 'evident-client',
-        //     cwd: './client',
-        //     script: 'pnpm',
-        //     args: 'dev',
+        //     name: 'evident-transcript-worker',
+        //     cwd: './transcript-worker',
+        //     script: 'bun',
+        //     args: 'start',
         //     env: {
-        //         NODE_ENV: 'development',
+        //         NODE_ENV: 'preview',
         //     },
         // },
+        {
+            name: 'evident-client',
+            cwd: './client',
+            script: 'npm',
+            args: 'run start',
+            env: {
+                NODE_ENV: 'production',
+                PORT: 3001,
+            },
+        },
     ],
 };
