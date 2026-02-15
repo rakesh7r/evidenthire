@@ -1,0 +1,486 @@
+{
+  "raw_segment_count": 22,
+  "canonical_segment_count": 22,
+  "turns": [
+    {
+      "turn_id": "354d7592-998b-4370-9f44-cc6074cbe82a",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "Can you start by giving a quick overview of your experience as a frontend and backend engineer?",
+      "start_ts": 0,
+      "end_ts": 27.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "51022db8-c7a9-44ff-ae07-d6c5dcd710dd",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "Sure. I have around eight years of experience overall. On the frontend side, I mostly work with React, including hooks, context, and performance optimization. On the backend, I primarily use Node.js with Express and sometimes NestJS. I have also worked extensively with AWS services and containerized deployments.",
+      "start_ts": 28,
+      "end_ts": 3909.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "760fdde2-2523-4001-8c03-43088bdc19fc",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "Let’s start with React. How do you manage state in a large-scale frontend application?",
+      "start_ts": 3910,
+      "end_ts": 5129.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "891c02f4-fcb7-43c4-bc67-36f211974c83",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "In smaller components, I prefer using local state with useState and useReducer. For larger applications, I usually rely on Redux Toolkit or React Query for server state. I also try to colocate state as close to where it’s used as possible to avoid unnecessary re-renders.",
+      "start_ts": 5130,
+      "end_ts": 7839.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "c1359713-9aa1-4643-a172-f2b5d636e27a",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "How do you handle performance optimization in React?",
+      "start_ts": 7840,
+      "end_ts": 8879.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "c5558a34-808a-4e45-b397-9b7d80e4bf6b",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "I look at memoization using React.memo, useCallback, and useMemo where required. I also focus on avoiding unnecessary renders, splitting code using lazy loading, and optimizing lists with techniques like virtualization when dealing with large datasets.",
+      "start_ts": 8880,
+      "end_ts": 11719.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "8985d3f9-d574-4e4a-8fc6-89a4a0b6845f",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "Moving to the backend, how do you structure a Node.js application for production?",
+      "start_ts": 11720,
+      "end_ts": 12849.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "70dd86f8-48dc-4d2b-b14e-e7573b5d5b41",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "I usually follow a layered architecture. Routes handle request validation, controllers manage request flow, services contain business logic, and repositories handle database access. This separation makes the system easier to test and scale.",
+      "start_ts": 12850,
+      "end_ts": 15599.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "aa419434-c778-4740-bb67-fc6b473a0f45",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "How do you handle asynchronous operations and errors in Node.js?",
+      "start_ts": 15600,
+      "end_ts": 16539.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "e59d198e-4956-49dd-a580-1e7968a19c57",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "I mostly use async and await with centralized error handling middleware. For promises, I avoid deeply nested logic and ensure proper try-catch blocks. Logging errors with correlation IDs is also important in production systems.",
+      "start_ts": 16540,
+      "end_ts": 19229.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "bdd4eb22-7a9a-4a45-a150-7461a2d1317b",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "Can you explain how you’ve used AWS in your projects?",
+      "start_ts": 19230,
+      "end_ts": 20289.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "5c505e7f-6e43-4e45-98f2-719bd8121962",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "I’ve used AWS EC2 for compute, S3 for object storage, RDS and DynamoDB for databases, and IAM for access control. For scalable systems, I’ve also used load balancers, auto-scaling groups, and CloudWatch for monitoring.",
+      "start_ts": 20290,
+      "end_ts": 23099.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "86a1dff8-596a-4e00-a711-375f15cc2f05",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "How do Docker and Kubernetes fit into your workflow?",
+      "start_ts": 23100,
+      "end_ts": 24139.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "7dfdf174-964c-4848-880f-a5420b7e6843",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "Docker is used to containerize applications so that environments are consistent. Kubernetes helps with orchestration, scaling, and self-healing. I usually define deployments, services, and config maps, and use Helm charts for managing configurations across environments.",
+      "start_ts": 24140,
+      "end_ts": 27309.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "516c216d-8954-471a-878c-2ba4a83fd5f4",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "What challenges have you faced while working with Kubernetes?",
+      "start_ts": 27310,
+      "end_ts": 28239.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "bd153f51-4114-46d5-94a8-2475f8e500b8",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "Debugging can be challenging, especially around networking and resource limits. Misconfigured readiness or liveness probes can also cause instability. Observability using logs and metrics is critical to troubleshoot issues effectively.",
+      "start_ts": 28240,
+      "end_ts": 31199.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "156b2629-dd9d-42ea-92f1-b0cccf0806ba",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "Let’s talk about CI/CD. What does a typical pipeline look like for you?",
+      "start_ts": 31200,
+      "end_ts": 32189.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "fa6c02b1-7d21-4ad5-95fb-095a639d7c9c",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "A typical pipeline includes code linting, unit tests, build steps, and container image creation. After that, the image is pushed to a registry and deployed to staging or production using automated scripts. Rollbacks and environment-specific configurations are also part of the setup.",
+      "start_ts": 32190,
+      "end_ts": 35419.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "3c339a94-7b71-4b37-9c33-77eab38ebaa7",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "How do you ensure code quality and reliability in such pipelines?",
+      "start_ts": 35420,
+      "end_ts": 36339.5,
+      "avg_confidence": 0.98,
+      "intent": "question"
+    },
+    {
+      "turn_id": "5e2dda03-9aaa-4333-8cc0-9cc62398646b",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "I rely on automated tests, static code analysis, and mandatory code reviews. Feature flags help reduce risk during releases, and monitoring after deployment ensures that issues are detected early.",
+      "start_ts": 36340,
+      "end_ts": 39299.5,
+      "avg_confidence": 0.98,
+      "intent": "answer"
+    },
+    {
+      "turn_id": "573e006a-5b91-4277-8e31-38b27e3335f7",
+      "speaker_id": "interviewer@evident.com",
+      "role": "interviewer",
+      "text": "Thank you. That will be all for today.",
+      "start_ts": 39300,
+      "end_ts": 39599.5,
+      "avg_confidence": 0.98,
+      "intent": "other"
+    },
+    {
+      "turn_id": "698c88cd-673b-4098-b980-89699ee7e639",
+      "speaker_id": "rakeshgandla202@gmail.com",
+      "role": "candidate",
+      "text": "Thank you for the opportunity.",
+      "start_ts": 39600,
+      "end_ts": 39602,
+      "avg_confidence": 0.98,
+      "intent": "other"
+    }
+  ],
+  "qa_spans": [
+    {
+      "span_id": "3f12e561-7e20-4207-a420-e8b3fbb881eb",
+      "question_turn_id": "354d7592-998b-4370-9f44-cc6074cbe82a",
+      "answer_turn_ids": [
+        "51022db8-c7a9-44ff-ae07-d6c5dcd710dd"
+      ],
+      "question": "Can you start by giving a quick overview of your experience as a frontend and backend engineer?",
+      "answer": "Sure. I have around eight years of experience overall. On the frontend side, I mostly work with React, including hooks, context, and performance optimization. On the backend, I primarily use Node.js with Express and sometimes NestJS. I have also worked extensively with AWS services and containerized deployments.",
+      "start_ts": 0,
+      "end_ts": 3909.5,
+      "signal_confidence": 0.97
+    },
+    {
+      "span_id": "e05e7999-bbe1-4b94-b541-9a47641ad91e",
+      "question_turn_id": "760fdde2-2523-4001-8c03-43088bdc19fc",
+      "answer_turn_ids": [
+        "891c02f4-fcb7-43c4-bc67-36f211974c83"
+      ],
+      "question": "Let’s start with React. How do you manage state in a large-scale frontend application?",
+      "answer": "In smaller components, I prefer using local state with useState and useReducer. For larger applications, I usually rely on Redux Toolkit or React Query for server state. I also try to colocate state as close to where it’s used as possible to avoid unnecessary re-renders.",
+      "start_ts": 3910,
+      "end_ts": 7839.5,
+      "signal_confidence": 0.68
+    },
+    {
+      "span_id": "51efad0a-cb77-462c-aadc-6190fa004d4b",
+      "question_turn_id": "c1359713-9aa1-4643-a172-f2b5d636e27a",
+      "answer_turn_ids": [
+        "c5558a34-808a-4e45-b397-9b7d80e4bf6b"
+      ],
+      "question": "How do you handle performance optimization in React?",
+      "answer": "I look at memoization using React.memo, useCallback, and useMemo where required. I also focus on avoiding unnecessary renders, splitting code using lazy loading, and optimizing lists with techniques like virtualization when dealing with large datasets.",
+      "start_ts": 7840,
+      "end_ts": 11719.5,
+      "signal_confidence": 0.72
+    },
+    {
+      "span_id": "311150b6-adf1-49c4-afe8-99261b1f6259",
+      "question_turn_id": "8985d3f9-d574-4e4a-8fc6-89a4a0b6845f",
+      "answer_turn_ids": [
+        "70dd86f8-48dc-4d2b-b14e-e7573b5d5b41"
+      ],
+      "question": "Moving to the backend, how do you structure a Node.js application for production?",
+      "answer": "I usually follow a layered architecture. Routes handle request validation, controllers manage request flow, services contain business logic, and repositories handle database access. This separation makes the system easier to test and scale.",
+      "start_ts": 11720,
+      "end_ts": 15599.5,
+      "signal_confidence": 0.69
+    },
+    {
+      "span_id": "a236cbbe-5bda-46aa-803e-46e5845deaf4",
+      "question_turn_id": "aa419434-c778-4740-bb67-fc6b473a0f45",
+      "answer_turn_ids": [
+        "e59d198e-4956-49dd-a580-1e7968a19c57"
+      ],
+      "question": "How do you handle asynchronous operations and errors in Node.js?",
+      "answer": "I mostly use async and await with centralized error handling middleware. For promises, I avoid deeply nested logic and ensure proper try-catch blocks. Logging errors with correlation IDs is also important in production systems.",
+      "start_ts": 15600,
+      "end_ts": 19229.5,
+      "signal_confidence": 0.73
+    },
+    {
+      "span_id": "469ed67f-2a96-448a-be47-2e04c213cf79",
+      "question_turn_id": "bdd4eb22-7a9a-4a45-a150-7461a2d1317b",
+      "answer_turn_ids": [
+        "5c505e7f-6e43-4e45-98f2-719bd8121962"
+      ],
+      "question": "Can you explain how you’ve used AWS in your projects?",
+      "answer": "I’ve used AWS EC2 for compute, S3 for object storage, RDS and DynamoDB for databases, and IAM for access control. For scalable systems, I’ve also used load balancers, auto-scaling groups, and CloudWatch for monitoring.",
+      "start_ts": 19230,
+      "end_ts": 23099.5,
+      "signal_confidence": 0.71
+    },
+    {
+      "span_id": "ffb73975-ec78-4746-a7fc-8f602c30388e",
+      "question_turn_id": "86a1dff8-596a-4e00-a711-375f15cc2f05",
+      "answer_turn_ids": [
+        "7dfdf174-964c-4848-880f-a5420b7e6843"
+      ],
+      "question": "How do Docker and Kubernetes fit into your workflow?",
+      "answer": "Docker is used to containerize applications so that environments are consistent. Kubernetes helps with orchestration, scaling, and self-healing. I usually define deployments, services, and config maps, and use Helm charts for managing configurations across environments.",
+      "start_ts": 23100,
+      "end_ts": 27309.5,
+      "signal_confidence": 0.74
+    },
+    {
+      "span_id": "dc7bff92-6231-4dd4-ab1a-1dc5854f23ab",
+      "question_turn_id": "516c216d-8954-471a-878c-2ba4a83fd5f4",
+      "answer_turn_ids": [
+        "bd153f51-4114-46d5-94a8-2475f8e500b8"
+      ],
+      "question": "What challenges have you faced while working with Kubernetes?",
+      "answer": "Debugging can be challenging, especially around networking and resource limits. Misconfigured readiness or liveness probes can also cause instability. Observability using logs and metrics is critical to troubleshoot issues effectively.",
+      "start_ts": 27310,
+      "end_ts": 31199.5,
+      "signal_confidence": 0.75
+    },
+    {
+      "span_id": "64303ea1-92ee-4f1d-92ce-75fc20da5fa1",
+      "question_turn_id": "156b2629-dd9d-42ea-92f1-b0cccf0806ba",
+      "answer_turn_ids": [
+        "fa6c02b1-7d21-4ad5-95fb-095a639d7c9c"
+      ],
+      "question": "Let’s talk about CI/CD. What does a typical pipeline look like for you?",
+      "answer": "A typical pipeline includes code linting, unit tests, build steps, and container image creation. After that, the image is pushed to a registry and deployed to staging or production using automated scripts. Rollbacks and environment-specific configurations are also part of the setup.",
+      "start_ts": 31200,
+      "end_ts": 35419.5,
+      "signal_confidence": 0.75
+    },
+    {
+      "span_id": "baef406b-f4b1-43ad-b45e-434c865d74b1",
+      "question_turn_id": "3c339a94-7b71-4b37-9c33-77eab38ebaa7",
+      "answer_turn_ids": [
+        "5e2dda03-9aaa-4333-8cc0-9cc62398646b",
+        "698c88cd-673b-4098-b980-89699ee7e639"
+      ],
+      "question": "How do you ensure code quality and reliability in such pipelines?",
+      "answer": "I rely on automated tests, static code analysis, and mandatory code reviews. Feature flags help reduce risk during releases, and monitoring after deployment ensures that issues are detected early. Thank you for the opportunity.",
+      "start_ts": 35420,
+      "end_ts": 39602,
+      "signal_confidence": 0.62
+    }
+  ],
+  "metadata": {
+    "processed_at": "2026-02-08T12:29:33.787Z",
+    "total_duration": 39602
+  },
+  "report": {
+    "evidence": [
+      {
+        "competency": "Communication",
+        "evidence": "The candidate provides a clear and concise overview of their experience, specifying the technologies they have worked with on both frontend and backend.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate mentions performance optimization on the frontend and containerized deployments, indicating experience with solving complex technical challenges.",
+        "risk": null,
+        "confidence_weight": 0.7
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly explains their approach to managing state in both small and large applications, mentioning specific tools and strategies like useState, useReducer, Redux Toolkit, and React Query.",
+        "risk": null,
+        "confidence_weight": 0.9
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate demonstrates problem-solving by describing how they manage state differently based on the size of the application, using local state for smaller components and more sophisticated tools for larger applications.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate mentions using memoization techniques such as React.memo, useCallback, and useMemo, avoiding unnecessary renders, splitting code with lazy loading, and optimizing lists with virtualization.",
+        "risk": null,
+        "confidence_weight": 0.9
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly explains the structure of a Node.js application using a layered architecture, detailing the roles of routes, controllers, services, and repositories.",
+        "risk": null,
+        "confidence_weight": 0.9
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate demonstrates problem-solving by describing a structured approach to organizing a Node.js application, which facilitates testing and scaling.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly explains their approach to handling asynchronous operations using async/await and centralized error handling middleware.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate describes using async/await, centralized error handling, avoiding deeply nested logic, and using try-catch blocks to manage asynchronous operations and errors.",
+        "risk": null,
+        "confidence_weight": 0.9
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly lists specific AWS services they have used, indicating an ability to communicate technical details succinctly.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate mentions using AWS services like load balancers, auto-scaling groups, and CloudWatch for scalable systems, indicating an understanding of how to solve scalability issues.",
+        "risk": null,
+        "confidence_weight": 0.7
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly explains the use of Docker for containerizing applications and Kubernetes for orchestration, scaling, and self-healing.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate describes using Kubernetes to define deployments, services, and config maps, and mentions using Helm charts for managing configurations across environments, indicating an understanding of solving deployment and configuration management challenges.",
+        "risk": null,
+        "confidence_weight": 0.7
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "Debugging can be challenging, especially around networking and resource limits. Misconfigured readiness or liveness probes can also cause instability. Observability using logs and metrics is critical to troubleshoot issues effectively.",
+        "risk": "Potential difficulty in managing complex debugging scenarios without sufficient observability tools.",
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly outlines the steps involved in a typical CI/CD pipeline, including code linting, unit tests, build steps, container image creation, and deployment.",
+        "risk": null,
+        "confidence_weight": 0.8
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate describes the use of automated scripts for deployment and mentions handling rollbacks and environment-specific configurations, indicating an understanding of solving deployment challenges.",
+        "risk": null,
+        "confidence_weight": 0.7
+      },
+      {
+        "competency": "Communication",
+        "evidence": "The candidate clearly outlines the methods used to ensure code quality and reliability, mentioning automated tests, static code analysis, mandatory code reviews, feature flags, and monitoring.",
+        "risk": null,
+        "confidence_weight": 0.9
+      },
+      {
+        "competency": "Problem Solving",
+        "evidence": "The candidate describes a systematic approach to ensuring code quality and reliability, using automated tests, static code analysis, code reviews, feature flags, and monitoring to detect issues early.",
+        "risk": null,
+        "confidence_weight": 0.9
+      }
+    ],
+    "hire_signal": {
+      "hire_signal": "hire",
+      "confidence": 0.81,
+      "coverage": 1,
+      "notes": "",
+      "competency_breakdown": [
+        {
+          "competency": "Communication",
+          "status": "observed",
+          "confidence": 0.8375,
+          "evidence_referenced": []
+        },
+        {
+          "competency": "Problem Solving",
+          "status": "observed",
+          "confidence": 0.7900000000000001,
+          "evidence_referenced": []
+        }
+      ],
+      "summary": "The candidate demonstrates strong communication skills, effectively articulating their technical experience and methodologies across various technologies and tools. They exhibit robust problem-solving abilities, showcasing a structured approach to optimizing performance, managing state, and handling deployments. While they show proficiency in debugging and scalability, there is a minor concern regarding their ability to manage complex debugging scenarios without advanced observability tools. Overall, the candidate presents a compelling case for hire."
+    }
+  }
+}

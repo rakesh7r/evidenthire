@@ -128,8 +128,13 @@ export const createDatabaseTables = async () => {
               -- Audio storage (session-less)
               audio_folder_path text,
               last_chunk_index  integer DEFAULT 0,
+              report_s3_url     text,
               created_at        timestamptz not null default now()
             )`;
+
+		// Ensure column exists for existing tables
+		await sql`ALTER TABLE interview ADD COLUMN IF NOT EXISTS report_s3_url text`;
+
 		console.log('Interview table created successfully');
 
 		// =========================

@@ -34,6 +34,47 @@ export const getInterviewsByOrg = async (userId: string) => {
     `;
 };
 
+// ... (existing code for getInterviewsByOrg)
+
+export const getInterviewsByPosition = async (userId: string, positionId: string) => {
+	const user = await sql`SELECT organization_id FROM user_account WHERE id = ${userId}`;
+	const organization_id = user[0]?.organization_id;
+
+	if (!organization_id) {
+		return [];
+	}
+
+	return await sql`
+        SELECT 
+            i.*, 
+            c.name as candidate_name, 
+            c.email as candidate_email,
+            p.title as position_title,
+            (
+                SELECT array_agg(user_id) 
+                FROM interview_participant 
+                WHERE interview_id = i.id
+            ) as interviewer_ids,
+            (
+                SELECT json_agg(
+                    json_build_object(
+                        'user_id', ip.user_id, 
+                        'full_name', u.full_name,
+                        'email', u.email
+                    )
+                )
+                FROM interview_participant ip
+                JOIN user_account u ON ip.user_id = u.id
+                WHERE ip.interview_id = i.id AND ip.role = 'interviewer'
+            ) as interviewers
+        FROM interview i
+        JOIN candidate c ON i.candidate_id = c.id
+        JOIN position p ON i.position_id = p.id
+        WHERE i.position_id = ${positionId} AND p.organization_id = ${organization_id}
+        ORDER BY i.scheduled_start DESC
+    `;
+};
+
 export const getInterviewById = async (userId: string, interviewId: string) => {
 	const user = await sql`SELECT organization_id FROM user_account WHERE id = ${userId}`;
 	const organization_id = user[0]?.organization_id;
@@ -48,6 +89,7 @@ export const getInterviewById = async (userId: string, interviewId: string) => {
             c.name as candidate_name, 
             c.email as candidate_email,
             p.title as position_title,
+            p.organization_id,
             (
                 SELECT array_agg(user_id) 
                 FROM interview_participant 
@@ -538,4 +580,13 @@ export const getInterviewMetadataForRecording = async (interviewId: string) => {
         WHERE i.id = ${interviewId}
     `;
 	return result[0];
+};
+
+export const getInterviewType = async (interviewId: string): Promise<string> => {
+	const result = await sql`
+        SELECT round_type 
+        FROM interview 
+        WHERE id = ${interviewId}
+    `;
+	return result[0]?.round_type || 'screening';
 };

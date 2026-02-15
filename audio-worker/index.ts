@@ -10,7 +10,11 @@ import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
 import { processTranscript } from './transcript-processor';
-import type { TranscriptPart } from './transcript-processor';
+import type { TranscriptPart, TranscriptArtifact } from './types';
+import { extractEvidence, generateHireSignal } from './evidence-extractor';
+import { sql } from './db';
+import { sendReportReadyEmail } from './email-service';
+import { indexInterviewArtifact } from './rag-indexer';
 
 if (ffmpegPath) {
 	ffmpeg.setFfmpegPath(ffmpegPath);
@@ -18,7 +22,9 @@ if (ffmpegPath) {
 	console.warn('ffmpeg-static path not found, audio conversion might fail.');
 }
 
-// Types for transcript segments
+const WAIT_TIME_SECONDS = 20;
+
+// Types for transcript segments (Legacy/Internal use)
 interface TranscriptSegment {
 	speaker: string;
 	role: string;
@@ -135,7 +141,7 @@ const startSQSConsumer = async () => {
 			const command = new ReceiveMessageCommand({
 				QueueUrl: QUEUE_URL,
 				MaxNumberOfMessages: 5,
-				WaitTimeSeconds: 20,
+				WaitTimeSeconds: WAIT_TIME_SECONDS,
 			});
 
 			const response = await sqsClient.send(command);
@@ -155,7 +161,8 @@ const startSQSConsumer = async () => {
 								processingSuccess = true;
 							} else if (body.event === 'session_ended') {
 								console.log(`[SQS] Received session_ended for interview ${body.interviewId}. Finalizing transcript...`);
-								await handleSessionEnd(body.interviewId);
+								// Pass interviewType if available
+								await handleSessionEnd(body.interviewId, body.interviewType);
 								processingSuccess = true;
 							} else if (body.Records) {
 								// Assume success unless an error is thrown in the loop
@@ -394,7 +401,11 @@ async function processAudioChunk(bucket: string, key: string) {
 			console.log(`[${key}] Saved part file to s3://${bucket}/${partKey}`);
 
 			// 7. Regenerate merged transcript
-			await generateMergedTranscript(bucket, interviewFolder);
+			// Note: We don't pass interviewType here usually, as intermediate merges don't need full analysis
+			// But we can if we want partial results. For now, strict 'screening' or undefined default to skip expensive LLM?
+			// Let's skip LLM for intermediate chunks to save cost/latency.
+			// Only perform LLM at session end.
+			await generateMergedTranscript(bucket, interviewFolder, undefined);
 		} else {
 			console.log(`[${key}] No transcript content generated.`);
 		}
@@ -406,7 +417,7 @@ async function processAudioChunk(bucket: string, key: string) {
 }
 
 // Updated merge function to read individual part files
-async function generateMergedTranscript(bucket: string, interviewFolder: string) {
+async function generateMergedTranscript(bucket: string, interviewFolder: string, interviewType?: string) {
 	const partsPrefix = `${interviewFolder}/transcripts/parts/`;
 	const transcriptKey = `${interviewFolder}/transcripts/transcript.txt`;
 	const fullJsonParamsKey = `${interviewFolder}/transcripts/transcript.json`; // Requested JSON format
@@ -451,13 +462,27 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 		// Use the new transcript processor to clean, merge and structure the data
 		console.log(`[MERGE] Processing ${allParts.length} segments with advanced logic...`);
 		const processedArtifact = processTranscript(allParts);
+
+		// If we have interviewType and OpenAI key, perform analysis (Phases 6-8)
+		if (interviewType && process.env.OPENAI_API_KEY) {
+			console.log(`[MERGE] Performing Evidence Extraction & Analysis for type: ${interviewType}...`);
+			const evidence = await extractEvidence(openai, processedArtifact.qa_spans, interviewType);
+			const report = await generateHireSignal(openai, evidence, interviewType);
+
+			processedArtifact.report = {
+				evidence: evidence,
+				hire_signal: report,
+			};
+			console.log(`[MERGE] Analysis complete. Evidence count: ${evidence.length}, Signal: ${report.hire_signal}`);
+		}
+
 		console.log(
 			`[MERGE] Processed: ${processedArtifact.raw_segment_count} raw -> ${processedArtifact.canonical_segment_count} canonical segments -> ${processedArtifact.turns.length} turns.`
 		);
 
 		// Generate human-readable text from merged turns
 		const transcriptText = processedArtifact.turns
-			.map((turn) => `[${formatTimestamp(turn.start_ts * 1000)} - ${turn.role}] ${turn.text}`)
+			.map((turn) => `[${formatTimestamp(turn.start_ts * 1000)} - ${turn.role} (${turn.intent})] ${turn.text}`)
 			.join('\n\n');
 
 		// Save transcript.txt
@@ -481,12 +506,127 @@ async function generateMergedTranscript(bucket: string, interviewFolder: string)
 			})
 		);
 		console.log(`[MERGE] Saved structured artifact to ${fullJsonParamsKey}`);
+
+		if (processedArtifact.report) {
+			const reportParamsKey = `${interviewFolder}/transcripts/report.json`;
+
+			await s3Client.send(
+				new PutObjectCommand({
+					Bucket: bucket,
+					Key: reportParamsKey,
+					Body: JSON.stringify(processedArtifact.report, null, 2),
+					ContentType: 'application/json',
+				})
+			);
+			console.log(`[MERGE] Saved analysis report to ${reportParamsKey}`);
+
+			// Update Database with Report URL
+			const region = process.env.AWS_REGION || 'ap-south-1';
+			const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${reportParamsKey}`;
+
+			// Extract interviewId from interviewFolder. interviewFolder is like <interview_id> or <interview_id> if it's top level.
+			// The generateMergedTranscript receives `interviewFolder` as argument.
+			// In processAudioChunk: `const interviewFolder = parts.slice(0, audioIndex).join('/');`
+			// If path is `<interview_id>/audio/...`, interviewFolder is `<interview_id>`.
+
+			try {
+				const interviewId = interviewFolder.split('/')[0]; // Assuming interviewFolder is "uuid" or "uuid/something" if nested
+				if (interviewId) {
+					await sql`
+                        UPDATE interview 
+                        SET report_s3_url = ${s3Url} 
+                        WHERE id = ${interviewId}
+                    `;
+					console.log(`[DB] Updated interview ${interviewId} with report URL: ${s3Url}`);
+
+					// 1. Index for RAG (Search & Chat)
+					try {
+						const metaRows = await sql`
+                            SELECT 
+                                i.candidate_id, 
+                                i.position_id, 
+                                p.organization_id, 
+                                i.round_type,
+                                i.round_title
+                            FROM interview i
+                            LEFT JOIN position p ON i.position_id = p.id
+                            WHERE i.id = ${interviewId}
+                        `;
+
+						if (metaRows && metaRows.length > 0) {
+							const m = metaRows[0];
+							if (m) {
+								console.log(`[RAG] Indexing artifact for ${interviewId} (Org: ${m.organization_id})`);
+
+								await indexInterviewArtifact(processedArtifact, {
+									organizationId: m.organization_id,
+									positionId: m.position_id,
+									candidateId: m.candidate_id,
+									interviewId: interviewId,
+									interviewType: m.round_type || m.round_title || 'general',
+								});
+								console.log(`[RAG] Indexing complete.`);
+							}
+						} else {
+							console.warn(`[RAG] Skipped indexing: Metadata not found for ${interviewId}`);
+						}
+					} catch (ragErr) {
+						console.error('[RAG] Indexing failed:', ragErr);
+					}
+
+					// 2. Notify Users via Email (Recruiters/Interviewers only)
+					try {
+						// Fetch participants who are internal users
+						const participants = (await sql`
+                            SELECT
+                                c.name as candidate_name,
+                                p.title as position_title,
+                                u.email as user_email
+                            FROM interview i
+                            LEFT JOIN candidate c ON i.candidate_id = c.id
+                            LEFT JOIN position p ON i.position_id = p.id
+                            LEFT JOIN interview_participant ip ON i.id = ip.interview_id
+                            INNER JOIN user_account u ON ip.user_id = u.id
+                            WHERE i.id = ${interviewId}
+                            AND u.role IN ('recruiter', 'interviewer', 'admin')
+                        `) as any[];
+
+						if (participants && participants.length > 0) {
+							const { candidate_name, position_title } = participants[0];
+							// Ensure we only collect user_emails, filtering out any potential nulls
+							const uniqueEmails = [
+								...new Set(participants.map((p) => p.user_email).filter((e) => e && typeof e === 'string')),
+							];
+
+							console.log(
+								`[EMAIL] Sending report notification to ${uniqueEmails.length} recruiters/interviewers for ${candidate_name}`
+							);
+
+							for (const email of uniqueEmails) {
+								await sendReportReadyEmail(
+									email,
+									candidate_name || 'Candidate',
+									position_title || 'Position',
+									interviewId
+								);
+							}
+						}
+					} catch (notifyErr) {
+						console.error('[EMAIL] Failed to send report notification:', notifyErr);
+					}
+				}
+			} catch (err) {
+				console.error('[DB] Failed to update interview with report URL:', err);
+			}
+		}
+
+		return processedArtifact;
 	} catch (e) {
 		console.error(`[MERGE] Error merging transcripts for ${interviewFolder}:`, e);
 	}
 }
 
-async function handleSessionEnd(interviewId: string) {
+async function handleSessionEnd(interviewId: string, interviewType?: string) {
 	const S3_BUCKET = process.env.AWS_S3_BUCKET;
 	if (!S3_BUCKET) {
 		console.error('[SessionEnd] AWS_S3_BUCKET not set');
@@ -494,32 +634,29 @@ async function handleSessionEnd(interviewId: string) {
 	}
 
 	// 1. Force a final merge of the transcript to ensure consistency
-	console.log(`[SessionEnd] Performing final transcript merge for ${interviewId}`);
-	await generateMergedTranscript(S3_BUCKET, interviewId);
+	// Pass interviewType to enable AI analysis for this final merge
+	console.log(
+		`[SessionEnd] Performing final transcript merge for ${interviewId} (Type: ${interviewType || 'unknown/skip'})`
+	);
+	const finalArtifact = await generateMergedTranscript(S3_BUCKET, interviewId, interviewType);
 
-	const transcriptQueueUrl = process.env.AWS_SQS_TRANSCRIPT_QUEUE_URL;
-	if (!transcriptQueueUrl) {
-		console.error('[SessionEnd] AWS_SQS_TRANSCRIPT_QUEUE_URL not set. Cannot notify transcript worker.');
-		return;
+	// 2. Previously notified transcript worker, now processing locally.
+	// The artifact is already printed above.
+	// Future: Add AI analysis or other post-processing here using `finalArtifact`.
+	if (finalArtifact) {
+		console.log(`\n${'='.repeat(60)}`);
+		console.log(`FINAL TRANSCRIPT + REPORT JSON for Interview: ${interviewId}`);
+		console.log(`${'='.repeat(60)}`);
+		console.log(JSON.stringify(finalArtifact, null, 2));
+		console.log(`${'='.repeat(60)}\n`);
+
+		console.log(`[SessionEnd] Transcript ready for local processing/AI analysis.`);
+	} else {
+		console.warn(`[SessionEnd] Could not generate final transcript artifact for ${interviewId}`);
 	}
-
-	// 2. Notify transcript worker
-	const payload = {
-		event: 'transcript_ready',
-		interviewId,
-		timestamp: new Date().toISOString(),
-	};
-
-	try {
-		await sqsClient.send(
-			new SendMessageCommand({
-				QueueUrl: transcriptQueueUrl,
-				MessageBody: JSON.stringify(payload),
-			})
-		);
-		console.log(`[SessionEnd] Sent transcript_ready event to ${transcriptQueueUrl}`);
-	} catch (err) {
-		console.error(`[SessionEnd] Failed to send transcript_ready event:`, err);
+	// Future: Add AI analysis or other post-processing here using `finalArtifact`.
+	if (finalArtifact) {
+		console.log(`[SessionEnd] Transcript ready for local processing/AI analysis.`);
 	}
 }
 
