@@ -118,6 +118,52 @@ This is the system's "ears." It operates asynchronously to process raw interview
   - **Evidence Extraction**: Parses the transcript to identify key competencies demonstrated by the candidate.
   - **Hire Signal Generation**: Synthesizes evidence into a structured report with a "Hire/No Hire" recommendation.
 
+#### Internal Data Structure
+
+To understand the internals, here is a snippet of the processed data structure generated during the test flow (`audio-worker/test/test_results_2026-02-08T12-29-54-536Z.json`):
+
+```json
+{
+	"turns": [
+		{
+			"role": "interviewer",
+			"text": "Can you start by giving a quick overview of your experience...?",
+			"start_ts": 0,
+			"end_ts": 27.5,
+			"intent": "question"
+		},
+		{
+			"role": "candidate",
+			"text": "Sure. I have around eight years of experience overall...",
+			"start_ts": 28,
+			"end_ts": 3909.5,
+			"intent": "answer"
+		}
+	],
+	"qa_spans": [
+		{
+			"question": "Can you start by giving a quick overview...?",
+			"answer": "Sure. I have around eight years of experience...",
+			"signal_confidence": 0.97
+		}
+	],
+	"report": {
+		"evidence": [
+			{
+				"competency": "Communication",
+				"evidence": "The candidate provides a clear and concise overview...",
+				"confidence_weight": 0.8
+			}
+		],
+		"hire_signal": {
+			"hire_signal": "hire",
+			"confidence": 0.81,
+			"summary": "The candidate demonstrates strong communication skills..."
+		}
+	}
+}
+```
+
 ### 3.4. Knowledge & Retrieval (RAG)
 
 This module turns unstructured interview data into searchable knowledge.
