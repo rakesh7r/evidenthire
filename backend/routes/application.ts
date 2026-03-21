@@ -597,6 +597,7 @@ app.post('/apply', async (c) => {
 		} else {
 			// Create new application
 			const insertResult = await sql`
+                INSERT INTO application (position_id, email, name, resume_s3_url, cv_analysis, status)
                 VALUES (${positionId}, ${normalizedEmail}, ${name}, ${resumeS3Url}, ${
 				analysisResult ? sql.json(analysisResult) : null
 			}, ${initialStatus})
