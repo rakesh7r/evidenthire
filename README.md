@@ -14,7 +14,7 @@ The project follows a modern microservices-like architecture, orchestrated via D
 
 The following diagram illustrates the high-level architecture and data flow of the Evident Hiring platform.
 
-```mermaid
+```text
 graph TD
     Client[Next.js Client]
 
