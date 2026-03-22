@@ -169,6 +169,36 @@ p {
   line-height: 1.7;
 }
 
+.feature-card .card-img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e8e8ec;
+  margin-top: 1rem;
+  margin-bottom: 0;
+  display: block;
+}
+
+/* ===== Standalone Screenshot ===== */
+.screenshot-showcase {
+  margin: 2rem 0;
+}
+
+.screenshot-showcase img {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #e0e0e5;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  display: block;
+}
+
+.screenshot-showcase .caption {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #999;
+  margin-top: 0.6rem;
+  font-style: italic;
+}
+
 /* ===== Why Powerful Section ===== */
 .why-list {
   list-style: none;
