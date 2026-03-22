@@ -1,5 +1,8 @@
 # Evident Hiring - Platform & Technical Documentation
 
+> 📖 **[Read the Technical Blog →](https://rakesh7r.github.io/evidenthire/)**
+
+
 ## 1. Project Overview
 
 **Evident Hiring** is an advanced, AI-powered recruitment platform designed to streamline the hiring process through intelligent automation. It bridges the gap between traditional Applicant Tracking Systems (ATS) and modern video interviewing tools by integrating real-time communication, automated evidence gathering, and sophisticated AI analysis.
