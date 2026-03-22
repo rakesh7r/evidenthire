@@ -19,6 +19,12 @@ body {
   color: #1a1a2e;
   background-color: #fafafa;
   line-height: 1.8;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
 }
 
 /* ===== Layout ===== */
@@ -27,6 +33,7 @@ body {
   width: 65%;
   margin: 0 auto;
   padding: 4rem 0 6rem;
+  overflow: hidden;
 }
 
 /* ===== Header / Hero ===== */
@@ -138,6 +145,7 @@ p {
   border: 1px solid #e8e8ec;
   border-radius: 10px;
   padding: 1.5rem;
+  overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
