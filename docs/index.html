@@ -1,246 +1,445 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EvidentHire — Evidence-Based Hiring, Not Gut Feeling</title>
-  <meta name="description" content="EvidentHire is an AI-powered interview platform that turns conversations into structured, evidence-backed hiring decisions. Open source, built for teams that want fair and consistent interviews." />
-  <meta name="author" content="Rakesh Gandla" />
-  <meta property="og:title" content="EvidentHire — Evidence-Based Hiring, Not Gut Feeling" />
-  <meta property="og:description" content="An AI-powered interview platform that turns conversations into structured, evidence-backed hiring decisions." />
-  <meta property="og:type" content="article" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0" />
+		<title>EvidentHire — Evidence-Based Hiring, Not Gut Feeling</title>
+		<meta
+			name="description"
+			content="EvidentHire is an AI-powered interview platform that turns conversations into structured, evidence-backed hiring decisions. Open source, built for teams that want fair and consistent interviews." />
+		<meta
+			name="author"
+			content="Rakesh Gandla" />
+		<meta
+			property="og:title"
+			content="EvidentHire — Evidence-Based Hiring, Not Gut Feeling" />
+		<meta
+			property="og:description"
+			content="An AI-powered interview platform that turns conversations into structured, evidence-backed hiring decisions." />
+		<meta
+			property="og:type"
+			content="article" />
+		<link
+			rel="preconnect"
+			href="https://fonts.googleapis.com" />
+		<link
+			rel="preconnect"
+			href="https://fonts.gstatic.com"
+			crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+			rel="stylesheet" />
+		<link
+			rel="stylesheet"
+			href="style.css" />
+	</head>
+	<body>
+		<main class="page-wrapper">
+			<!-- Header -->
+			<header class="blog-header">
+				<span class="blog-badge">Technical Blog</span>
+				<h1>Building EvidentHire: Evidence-Based Hiring, Not Gut Feeling</h1>
+				<p class="subtitle">
+					Most interviews rely too much on memory and gut feeling. I built EvidentHire to shift that—analyzing interview
+					conversations against job requirements and producing clear, evidence-backed insights instead of just opinions.
+				</p>
+				<div class="blog-meta">
+					<span class="author">Rakesh Gandla</span>
+					<span class="separator">·</span>
+					<span>March 2026</span>
+					<span class="separator">·</span>
+					<span>12 min read</span>
+				</div>
+			</header>
 
-  <main class="page-wrapper">
+			<!-- TLDR -->
+			<div class="tldr">
+				<strong>TL;DR —</strong> Most interviews rely too much on gut feeling, which leads to biased and inconsistent
+				decisions. I built EvidentHire to make hiring more structured by analyzing interview conversations, comparing
+				them against job requirements, and giving clear, evidence-backed insights instead of just opinions.
+			</div>
 
-    <!-- Header -->
-    <header class="blog-header">
-      <span class="blog-badge">Technical Blog</span>
-      <h1>Building EvidentHire: Evidence-Based Hiring, Not Gut Feeling</h1>
-      <p class="subtitle">
-        Most interviews rely too much on memory and gut feeling. I built EvidentHire to shift that—analyzing interview conversations against job requirements and producing clear, evidence-backed insights instead of just opinions.
-      </p>
-      <div class="blog-meta">
-        <span class="author">Rakesh Gandla</span>
-        <span class="separator">·</span>
-        <span>March 2026</span>
-        <span class="separator">·</span>
-        <span>12 min read</span>
-      </div>
-    </header>
+			<!-- Origin Story -->
+			<section>
+				<p>
+					I recently read about a failed interview. The candidate wasn't rejected for lack of skill, but for how they
+					spoke—their accent, phrasing, and background. The interviewer made a judgment call, and that was the end of
+					it.
+				</p>
+				<p>
+					That's not just one case. Interviews are often shaped by bias—conscious or not. Decisions get made on gut
+					feeling, surface-level impressions, or incomplete signals. Even strong candidates get filtered out, and
+					there's rarely any structured evidence behind the outcome.
+				</p>
+				<p>That's exactly the problem I set out to solve.</p>
+				<p>
+					It started as an evaluation engine—comparing the depth of skills required for a role against the depth
+					demonstrated during an interview. But as I worked through the problem, it evolved into a structured interview
+					platform focused on one thing: making interview outcomes measurable, comparable, and defensible.
+				</p>
+				<p>This is built for teams that want hiring decisions to be structured, consistent, and evidence-backed.</p>
 
-    <!-- TLDR -->
-    <div class="tldr">
-      <strong>TL;DR —</strong> Most interviews rely too much on gut feeling, which leads to biased and inconsistent decisions. I built EvidentHire to make hiring more structured by analyzing interview conversations, comparing them against job requirements, and giving clear, evidence-backed insights instead of just opinions.
-    </div>
+				<div class="screenshot-showcase">
+					<!-- <img
+						src="screenshots/dashboard.png"
+						alt="EvidentHire Dashboard" /> -->
+					<p class="caption">The recruiter dashboard — your command center for managing the entire hiring pipeline.</p>
+				</div>
+			</section>
 
-    <!-- Origin Story -->
-    <section>
-      <p>
-        I recently read about a failed interview. The candidate wasn't rejected for lack of skill, but for how they spoke—their accent, phrasing, and background. The interviewer made a judgment call, and that was the end of it.
-      </p>
-      <p>
-        That's not just one case. Interviews are often shaped by bias—conscious or not. Decisions get made on gut feeling, surface-level impressions, or incomplete signals. Even strong candidates get filtered out, and there's rarely any structured evidence behind the outcome.
-      </p>
-      <p>
-        That's exactly the problem I set out to solve.
-      </p>
-      <p>
-        It started as an evaluation engine—comparing the depth of skills required for a role against the depth demonstrated during an interview. But as I worked through the problem, it evolved into a structured interview platform focused on one thing: making interview outcomes measurable, comparable, and defensible.
-      </p>
-      <p>
-        This is built for teams that want hiring decisions to be structured, consistent, and evidence-backed.
-      </p>
-    </section>
+			<hr class="section-divider" />
 
-    <hr class="section-divider" />
+			<!-- Features -->
+			<section>
+				<h2>What It Offers</h2>
 
-    <!-- Features -->
-    <section>
-      <h2>What It Offers</h2>
+				<div class="features-grid">
+					<div class="feature-card">
+						<span class="card-label">Careers</span>
+						<h3>Job Board / Careers Portal</h3>
+						<p>
+							A dynamic portal where organizations can easily create new job requisitions, define specific skill
+							requirements for each role, and allow candidates to apply directly.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/careers-mini.png"
+							alt="Careers page" />
+					</div>
 
-      <div class="features-grid">
+					<div class="feature-card">
+						<span class="card-label">Roles</span>
+						<h3>Job Creation</h3>
+						<p>
+							Unlike traditional systems, this allows recruiters to define not just required skills, but the expected
+							depth for each skill. For example, a role may require intermediate knowledge of a framework but strong
+							problem-solving ability. Recruiters assign weights to reflect this, allowing the system to evaluate
+							candidates against clearly defined expectations.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/create-position.png"
+							alt="Create position" />
+					</div>
 
-        <div class="feature-card">
-          <span class="card-label">Careers</span>
-          <h3>Job Board / Careers Portal</h3>
-          <p>A dynamic portal where organizations can easily create new job requisitions, define specific skill requirements for each role, and allow candidates to apply directly.</p>
-        </div>
+					<div class="feature-card">
+						<span class="card-label">AI Analysis</span>
+						<h3>Automated Resume Analysis</h3>
+						<p>
+							Unlike traditional ATS systems that focus on tracking candidates, this system evaluates how well a
+							candidate demonstrates the required skills for the role. When candidates upload their resume, the system
+							extracts and evaluates profiles against the defined skill expectations, generating a structured summary of
+							alignment.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/job-apply.png"
+							alt="Job application with resume analysis" />
+					</div>
 
-        <div class="feature-card">
-          <span class="card-label">Roles</span>
-          <h3>Job Creation</h3>
-          <p>Unlike traditional systems, this allows recruiters to define not just required skills, but the expected depth for each skill. For example, a role may require intermediate knowledge of a framework but strong problem-solving ability. Recruiters assign weights to reflect this, allowing the system to evaluate candidates against clearly defined expectations.</p>
-        </div>
+					<div class="feature-card">
+						<span class="card-label">Scheduling</span>
+						<h3>In-App Interview Scheduler</h3>
+						<p>
+							A dedicated recruiter dashboard that acts as a command center to manage candidate pipelines, review
+							applications, and seamlessly schedule upcoming interviews without juggling external tools.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/schedule-interview.png"
+							alt="Schedule interview" />
+					</div>
 
-        <div class="feature-card">
-          <span class="card-label">AI Analysis</span>
-          <h3>Automated Resume Analysis</h3>
-          <p>Unlike traditional ATS systems that focus on tracking candidates, this system evaluates how well a candidate demonstrates the required skills for the role. When candidates upload their resume, the system extracts and evaluates profiles against the defined skill expectations, generating a structured summary of alignment.</p>
-        </div>
+					<div class="feature-card">
+						<span class="card-label">Video</span>
+						<h3>In-App Video Interviews</h3>
+						<p>
+							Conduct low-latency video and audio interviews right inside the platform, powered by LiveKit SDK.
+							Interviewers get specialized tools built directly into the video room, like question guides and
+							note-taking interfaces.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/interview.png"
+							alt="In-app video interview" />
+					</div>
 
-        <div class="feature-card">
-          <span class="card-label">Scheduling</span>
-          <h3>In-App Interview Scheduler</h3>
-          <p>A dedicated recruiter dashboard that acts as a command center to manage candidate pipelines, review applications, and seamlessly schedule upcoming interviews without juggling external tools.</p>
-        </div>
+					<div class="feature-card">
+						<span class="card-label">Intelligence</span>
+						<h3>Audio Intelligence Engine</h3>
+						<p>
+							The platform automatically records and transcribes the interview in real-time. Individual speaker audio
+							tracks are treated as the source of truth. OpenAI Whisper transcribes the audio and stores transcripts.
+							Advanced AI then processes the conversation, pulling out concrete evidence of the candidate's competencies
+							and skills. If the audio clarity score is low, the evaluation is flagged as low-signal and strong
+							conclusions are avoided.
+						</p>
+					</div>
 
-        <div class="feature-card">
-          <span class="card-label">Video</span>
-          <h3>In-App Video Interviews</h3>
-          <p>Conduct low-latency video and audio interviews right inside the platform, powered by LiveKit SDK. Interviewers get specialized tools built directly into the video room, like question guides and note-taking interfaces.</p>
-        </div>
+					<div class="feature-card">
+						<span class="card-label">Reports</span>
+						<h3>Automated Interview Reports</h3>
+						<p>
+							No more writing post-interview summaries from scratch. The system synthesizes the entire interview into a
+							structured report—complete with answer confidence scores, extracted strengths and risks, and a structured
+							hiring recommendation supported by evidence-backed summaries.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/report.png"
+							alt="Interview report" />
+					</div>
 
-        <div class="feature-card">
-          <span class="card-label">Intelligence</span>
-          <h3>Audio Intelligence Engine</h3>
-          <p>The platform automatically records and transcribes the interview in real-time. Individual speaker audio tracks are treated as the source of truth. OpenAI Whisper transcribes the audio and stores transcripts. Advanced AI then processes the conversation, pulling out concrete evidence of the candidate's competencies and skills. If the audio clarity score is low, the evaluation is flagged as low-signal and strong conclusions are avoided.</p>
-        </div>
+					<div class="feature-card">
+						<span class="card-label">RAG</span>
+						<h3>Smart Assistant &amp; Interview Search</h3>
+						<p>
+							The platform converts all your interviews—including what was spoken during the calls—into a searchable
+							database. Ask the built-in AI queries like, "Did the candidate mention experience with Docker?" and the
+							system will retrieve the exact transcript snippet where they talked about it.
+						</p>
+						<img
+							class="card-img"
+							src="screenshots/chatbot.png"
+							alt="AI chatbot for candidate search" />
+					</div>
+				</div>
+			</section>
 
-        <div class="feature-card">
-          <span class="card-label">Reports</span>
-          <h3>Automated Interview Reports</h3>
-          <p>No more writing post-interview summaries from scratch. The system synthesizes the entire interview into a structured report—complete with answer confidence scores, extracted strengths and risks, and a structured hiring recommendation supported by evidence-backed summaries.</p>
-        </div>
+			<hr class="section-divider" />
 
-        <div class="feature-card">
-          <span class="card-label">RAG</span>
-          <h3>Smart Assistant &amp; Interview Search</h3>
-          <p>The platform converts all your interviews—including what was spoken during the calls—into a searchable database. Ask the built-in AI queries like, "Did the candidate mention experience with Docker?" and the system will retrieve the exact transcript snippet where they talked about it.</p>
-        </div>
+			<!-- Why It's Powerful -->
+			<section>
+				<h2>Why It's Powerful</h2>
 
-      </div>
-    </section>
+				<ul class="why-list">
+					<li>
+						<strong>Evidence Extraction</strong>
+						To improve reliability, the system minimizes unnecessary AI usage and relies on deterministic processing
+						wherever possible. Audio is segmented into smaller chunks with speaker attribution and timestamps preserved,
+						ensuring that transcripts maintain conversational order and speaker accuracy.
+					</li>
+					<li>
+						<strong>Structured Evaluation</strong>
+						Transcripts are converted into question-answer pairs with quality scores generated for each response based
+						on alignment with the expected depth defined for the role. After per-answer confidence is calculated, it's
+						aggregated into outcome ranges such as Strong Hire, Hire, or No Hire. The overall interview score can then
+						be used to compare candidates and choose the best.
+					</li>
+					<li>
+						<strong>Focus on the Conversation</strong>
+						You don't need to take notes while the candidate is talking. The system automatically identifies speaker
+						turns, separates questions and answers, and extracts key insights from each response.
+					</li>
+					<li>
+						<strong>Hire Based on Facts, Not Gut Feelings</strong>
+						It's easy to forget what a candidate said by the end of a long day of interviews. The AI pulls out the exact
+						moments a person proved their skills. Decisions are supported by exact moments from the interview where the
+						candidate demonstrated specific skills.
+					</li>
+					<li>
+						<strong>A Fairer Process for Everyone</strong>
+						Because every candidate is evaluated against the same predefined skill expectations, decisions become more
+						consistent and less dependent on subjective judgment.
+					</li>
+				</ul>
+			</section>
 
-    <hr class="section-divider" />
+			<hr class="section-divider" />
 
-    <!-- Why It's Powerful -->
-    <section>
-      <h2>Why It's Powerful</h2>
+			<!-- How It Works -->
+			<section class="how-it-works">
+				<h2>How This Works</h2>
+				<p>An organization admin signs up and onboards team members as Admins, Recruiters, or Interviewers.</p>
 
-      <ul class="why-list">
-        <li>
-          <strong>Evidence Extraction</strong>
-          To improve reliability, the system minimizes unnecessary AI usage and relies on deterministic processing wherever possible. Audio is segmented into smaller chunks with speaker attribution and timestamps preserved, ensuring that transcripts maintain conversational order and speaker accuracy.
-        </li>
-        <li>
-          <strong>Structured Evaluation</strong>
-          Transcripts are converted into question-answer pairs with quality scores generated for each response based on alignment with the expected depth defined for the role. After per-answer confidence is calculated, it's aggregated into outcome ranges such as Strong Hire, Hire, or No Hire. The overall interview score can then be used to compare candidates and choose the best.
-        </li>
-        <li>
-          <strong>Focus on the Conversation</strong>
-          You don't need to take notes while the candidate is talking. The system automatically identifies speaker turns, separates questions and answers, and extracts key insights from each response.
-        </li>
-        <li>
-          <strong>Hire Based on Facts, Not Gut Feelings</strong>
-          It's easy to forget what a candidate said by the end of a long day of interviews. The AI pulls out the exact moments a person proved their skills. Decisions are supported by exact moments from the interview where the candidate demonstrated specific skills.
-        </li>
-        <li>
-          <strong>A Fairer Process for Everyone</strong>
-          Because every candidate is evaluated against the same predefined skill expectations, decisions become more consistent and less dependent on subjective judgment.
-        </li>
-      </ul>
-    </section>
+				<ul class="roles-list">
+					<li><strong>Admins</strong> have full access to all features of the platform.</li>
+					<li><strong>Recruiters</strong> can create job roles, schedule interviews, and access interview reports.</li>
+					<li>
+						<strong>Interviewers</strong> are responsible for conducting interviews and interacting with candidates
+						during the interview process.
+					</li>
+				</ul>
 
-    <hr class="section-divider" />
+				<p>
+					When an interview is scheduled, the interviewer and candidates are informed via emails with calendar invites.
+				</p>
 
-    <!-- How It Works -->
-    <section class="how-it-works">
-      <h2>How This Works</h2>
-      <p>An organization admin signs up and onboards team members as Admins, Recruiters, or Interviewers.</p>
+				<div class="screenshot-showcase">
+					<img
+						src="screenshots/past-interviews-for-a-pos.png"
+						alt="Past interviews for a position" />
+					<p class="caption">View all past interviews organized by role — making it easy to compare candidates.</p>
+				</div>
 
-      <ul class="roles-list">
-        <li><strong>Admins</strong> have full access to all features of the platform.</li>
-        <li><strong>Recruiters</strong> can create job roles, schedule interviews, and access interview reports.</li>
-        <li><strong>Interviewers</strong> are responsible for conducting interviews and interacting with candidates during the interview process.</li>
-      </ul>
+				<div class="screenshot-showcase">
+					<img
+						src="screenshots/interview-applications.png"
+						alt="Interview applications" />
+					<p class="caption">Review all applications for a position with AI-generated analysis at a glance.</p>
+				</div>
+			</section>
 
-      <p>When an interview is scheduled, the interviewer and candidates are informed via emails with calendar invites.</p>
-    </section>
+			<hr class="section-divider" />
 
-    <hr class="section-divider" />
+			<!-- Challenges -->
+			<section>
+				<h2>Challenges and Tradeoffs</h2>
+				<p>
+					The real challenge was everything that happens after someone hits "Join Interview." Taking a live conversation
+					between two people and turning it into something an AI can meaningfully understand—that's where things get
+					interesting. Here's what I ran into.
+				</p>
 
-    <!-- Challenges -->
-    <section>
-      <h2>Challenges and Tradeoffs</h2>
-      <p>
-        The real challenge was everything that happens after someone hits "Join Interview." Taking a live conversation between two people and turning it into something an AI can meaningfully understand—that's where things get interesting. Here's what I ran into.
-      </p>
+				<div class="challenge-block">
+					<h3>Who's talking?</h3>
+					<p>
+						When you record a video call, you just get audio. There's no built-in label telling you "these words are
+						from the interviewer" and "these are from the candidate." And if you get that wrong, everything downstream
+						is useless.
+					</p>
+					<p>
+						I got around this by using LiveKit's track-level recording. Each participant's mic is saved as a separate
+						audio file, so I always know who said what. A lot of other tools try to solve this after the fact using
+						speaker detection models, and those are hit or miss. I didn't want to gamble on that. There are still edge
+						cases—if someone's in a noisy room and the other person's voice bleeds into their mic, I get duplicate
+						segments. I wrote a deduplication step that catches overlapping chunks and keeps the cleaner version. It's
+						not perfect, but it's reliable enough that I can trust everything that comes after it.
+					</p>
+				</div>
 
-      <div class="challenge-block">
-        <h3>Who's talking?</h3>
-        <p>When you record a video call, you just get audio. There's no built-in label telling you "these words are from the interviewer" and "these are from the candidate." And if you get that wrong, everything downstream is useless.</p>
-        <p>I got around this by using LiveKit's track-level recording. Each participant's mic is saved as a separate audio file, so I always know who said what. A lot of other tools try to solve this after the fact using speaker detection models, and those are hit or miss. I didn't want to gamble on that. There are still edge cases—if someone's in a noisy room and the other person's voice bleeds into their mic, I get duplicate segments. I wrote a deduplication step that catches overlapping chunks and keeps the cleaner version. It's not perfect, but it's reliable enough that I can trust everything that comes after it.</p>
-      </div>
+				<div class="challenge-block">
+					<h3>Transcription mistakes</h3>
+					<p>
+						I'm using Whisper for transcription and it's genuinely great—until someone says "Kubernetes" and it comes
+						back as "Kuber Netties." Technical interviews are full of jargon, and Whisper stumbles on it more than you'd
+						expect.
+					</p>
+					<p>
+						My entire pipeline runs on that text. If the transcript is wrong, the AI analysis is wrong too. I thought
+						about adding a correction layer, but it would've slowed things down. What I did instead is simpler: Whisper
+						gives a confidence score for each chunk, and I carry that score forward through the whole pipeline. When
+						confidence is low, that segment naturally weighs less. The system doesn't try to fix bad audio—it just
+						trusts it less.
+					</p>
+				</div>
 
-      <div class="challenge-block">
-        <h3>Transcription mistakes</h3>
-        <p>I'm using Whisper for transcription and it's genuinely great—until someone says "Kubernetes" and it comes back as "Kuber Netties." Technical interviews are full of jargon, and Whisper stumbles on it more than you'd expect.</p>
-        <p>My entire pipeline runs on that text. If the transcript is wrong, the AI analysis is wrong too. I thought about adding a correction layer, but it would've slowed things down. What I did instead is simpler: Whisper gives a confidence score for each chunk, and I carry that score forward through the whole pipeline. When confidence is low, that segment naturally weighs less. The system doesn't try to fix bad audio—it just trusts it less.</p>
-      </div>
+				<div class="challenge-block">
+					<h3>Pairing questions with answers</h3>
+					<p>
+						In my head, an interview was Question 1 → Answer 1, Question 2 → Answer 2. In reality, conversations are a
+						mess. The interviewer asks something, the candidate starts answering, the interviewer interrupts, the
+						candidate continues.
+					</p>
+					<p>
+						I went with a dead simple rule: if the interviewer's turn has a question mark, it's a question. The
+						candidate's turn right after is the answer. Could I have used an LLM to classify intent more accurately?
+						Probably. But that's an extra API call per turn, per interview, and it adds up fast. My simple rule handles
+						most structured interviews just fine. The casual "tell me about X" format does get missed sometimes, and I'm
+						okay with that for now.
+					</p>
+				</div>
 
-      <div class="challenge-block">
-        <h3>Pairing questions with answers</h3>
-        <p>In my head, an interview was Question 1 → Answer 1, Question 2 → Answer 2. In reality, conversations are a mess. The interviewer asks something, the candidate starts answering, the interviewer interrupts, the candidate continues.</p>
-        <p>I went with a dead simple rule: if the interviewer's turn has a question mark, it's a question. The candidate's turn right after is the answer. Could I have used an LLM to classify intent more accurately? Probably. But that's an extra API call per turn, per interview, and it adds up fast. My simple rule handles most structured interviews just fine. The casual "tell me about X" format does get missed sometimes, and I'm okay with that for now.</p>
-      </div>
+				<div class="challenge-block">
+					<h3>Shallow vs. deep answers</h3>
+					<p>
+						A candidate can talk about React for five minutes and really say nothing. "React uses a virtual DOM"—cool,
+						you read the docs. Compare that to someone saying "We had 10,000 rows re-rendering on every keystroke, so I
+						wrapped the list in react-virtual and memoized the row component." That's actual experience.
+					</p>
+					<p>
+						I send each question-answer pair to the AI model with a tight prompt: just extract what was said, no
+						opinions, no adjectives like "strong" or "excellent," and assign a confidence weight. The important thing is
+						that this step never makes a hire or no-hire call. It only collects observations. The recommendation happens
+						separately, with clear rules I wrote myself. I kept those two stages apart on purpose—if the AI misjudges
+						one answer, it shouldn't tank the whole recommendation.
+					</p>
+				</div>
 
-      <div class="challenge-block">
-        <h3>Shallow vs. deep answers</h3>
-        <p>A candidate can talk about React for five minutes and really say nothing. "React uses a virtual DOM"—cool, you read the docs. Compare that to someone saying "We had 10,000 rows re-rendering on every keystroke, so I wrapped the list in react-virtual and memoized the row component." That's actual experience.</p>
-        <p>I send each question-answer pair to the AI model with a tight prompt: just extract what was said, no opinions, no adjectives like "strong" or "excellent," and assign a confidence weight. The important thing is that this step never makes a hire or no-hire call. It only collects observations. The recommendation happens separately, with clear rules I wrote myself. I kept those two stages apart on purpose—if the AI misjudges one answer, it shouldn't tank the whole recommendation.</p>
-      </div>
+				<div class="challenge-block">
+					<h3>Knowing when to trust the data</h3>
+					<p>
+						Not every moment in an interview carries the same weight. A two-minute uninterrupted answer with
+						crystal-clear audio? That's gold. A choppy 15-second response where the candidate got cut off twice? That's
+						noise pretending to be signal.
+					</p>
+					<p>
+						Every QA span gets a <code>signal_confidence</code> score based on three things: how much of the total time
+						the candidate was actually speaking, Whisper's confidence in the transcription, and an interruption penalty.
+						If the score falls below the threshold, that span is excluded from evidence extraction entirely. Feeding
+						garbage text into the AI model produces hallucinated evidence, and hallucinated evidence is worse than no
+						evidence at all. Quality over quantity, always.
+					</p>
+				</div>
 
-      <div class="challenge-block">
-        <h3>Knowing when to trust the data</h3>
-        <p>Not every moment in an interview carries the same weight. A two-minute uninterrupted answer with crystal-clear audio? That's gold. A choppy 15-second response where the candidate got cut off twice? That's noise pretending to be signal.</p>
-        <p>Every QA span gets a <code>signal_confidence</code> score based on three things: how much of the total time the candidate was actually speaking, Whisper's confidence in the transcription, and an interruption penalty. If the score falls below the threshold, that span is excluded from evidence extraction entirely. Feeding garbage text into the AI model produces hallucinated evidence, and hallucinated evidence is worse than no evidence at all. Quality over quantity, always.</p>
-      </div>
+				<div class="challenge-block">
+					<h3>Scores don't mean the same thing across interviews</h3>
+					<p>
+						My system spits out something like "81% confidence—hire." Sounds precise. But 81% from a 45-minute deep
+						technical round is completely different from 81% from a quick 15-minute screen. The screening just had fewer
+						questions and way less to work with.
+					</p>
+					<p>
+						To properly calibrate scores, I'd need hundreds of past interviews per role to build a baseline—and a new
+						company on the platform has zero history. So instead of faking precision, I track "coverage" alongside
+						confidence: what percentage of the competencies I expected to evaluate did I actually see evidence for? If
+						coverage drops below 50%, the system returns "inconclusive" no matter how good the evidence looks. I'd
+						rather say "I don't have enough data to tell you" than give someone a confident-looking number that's built
+						on thin air.
+					</p>
+				</div>
+			</section>
 
-      <div class="challenge-block">
-        <h3>Scores don't mean the same thing across interviews</h3>
-        <p>My system spits out something like "81% confidence—hire." Sounds precise. But 81% from a 45-minute deep technical round is completely different from 81% from a quick 15-minute screen. The screening just had fewer questions and way less to work with.</p>
-        <p>To properly calibrate scores, I'd need hundreds of past interviews per role to build a baseline—and a new company on the platform has zero history. So instead of faking precision, I track "coverage" alongside confidence: what percentage of the competencies I expected to evaluate did I actually see evidence for? If coverage drops below 50%, the system returns "inconclusive" no matter how good the evidence looks. I'd rather say "I don't have enough data to tell you" than give someone a confident-looking number that's built on thin air.</p>
-      </div>
-    </section>
+			<hr class="section-divider" />
 
-    <hr class="section-divider" />
+			<!-- Conclusion -->
+			<section class="conclusion">
+				<h2>Wrapping Up</h2>
+				<p>
+					I could've polished over all of this and just shown a clean score at the end. But I think anyone building AI
+					tools for hiring owes it to their users to be upfront about where the system is strong and where it's not. The
+					AI does the heavy lifting—the final decision is still yours.
+				</p>
+				<p>
+					Hiring decisions are too important to rely on memory and gut feeling alone. This system shifts interviews from
+					subjective impressions to structured, evidence-backed evaluation. Importantly, candidates are only compared
+					within the same interview type and role, ensuring fair and meaningful evaluation.
+				</p>
+				<p>The project is open source — contributions, feedback, and ideas are welcome on GitHub.</p>
+			</section>
 
-    <!-- Conclusion -->
-    <section class="conclusion">
-      <h2>Wrapping Up</h2>
-      <p>
-        I could've polished over all of this and just shown a clean score at the end. But I think anyone building AI tools for hiring owes it to their users to be upfront about where the system is strong and where it's not. The AI does the heavy lifting—the final decision is still yours.
-      </p>
-      <p>
-        Hiring decisions are too important to rely on memory and gut feeling alone. This system shifts interviews from subjective impressions to structured, evidence-backed evaluation. Importantly, candidates are only compared within the same interview type and role, ensuring fair and meaningful evaluation.
-      </p>
-      <p>
-        Open to collaborations on GitHub.
-      </p>
-    </section>
-
-    <!-- Footer -->
-    <footer class="blog-footer">
-      <div class="footer-links">
-        <a href="https://github.com/rakesh7r/evidenthire" target="_blank" rel="noopener noreferrer">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          Explore on GitHub
-        </a>
-        <a href="https://linkedin.com/in/rakeshgandla" target="_blank" rel="noopener noreferrer">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-          Connect on LinkedIn
-        </a>
-      </div>
-      <p class="copyright">© 2026 EvidentHire. Licensed under AGPLv3.</p>
-    </footer>
-
-  </main>
-
-</body>
+			<!-- Footer -->
+			<footer class="blog-footer">
+				<div class="footer-links">
+					<a
+						href="https://github.com/rakesh7r/evidenthire"
+						target="_blank"
+						rel="noopener noreferrer">
+						<svg
+							viewBox="0 0 24 24"
+							fill="currentColor">
+							<path
+								d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+						</svg>
+						Explore on GitHub
+					</a>
+					<a
+						href="https://linkedin.com/in/rakeshgandla"
+						target="_blank"
+						rel="noopener noreferrer">
+						<svg
+							viewBox="0 0 24 24"
+							fill="currentColor">
+							<path
+								d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+						</svg>
+						Connect on LinkedIn
+					</a>
+				</div>
+				<p class="copyright">© 2026 EvidentHire. Licensed under AGPLv3.</p>
+			</footer>
+		</main>
+	</body>
 </html>
